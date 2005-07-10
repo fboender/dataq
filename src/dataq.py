@@ -15,6 +15,13 @@ usageStr =\
   -v Print version information
 """
 
+#
+# Exit codes:
+# 
+#  -1 Incorrect usage
+#  -2 Fatal system resource problem
+#  -3 Configuration file problem
+
 import sys
 import getopt
 import os 
@@ -22,10 +29,13 @@ import SocketServer
 import socket
 import select
 from xml.parsers.xmlproc import xmlproc
-from xml.parsers.xmlproc import xmlval
-from xml.parsers.xmlproc import xmldtd
 
-class QueueError(Exception):
+class DataqError(Exception):
+
+	""" 
+		Generic DataQ Error exception 
+	"""
+
 	messages = {
 		101: "Bad syntax in request",
 		102: "Unknown request type",
@@ -50,6 +60,10 @@ class QueueError(Exception):
 
 class Log:
 
+	""" 
+		Console, verbose and system log logger 
+	"""
+
 	def verbose(type, msg):
 		global verbose
 
@@ -72,6 +86,11 @@ class Log:
 	
 
 class Queue:
+
+	""" 
+		Base queue class that handles generic actions on queues. Derive new 
+		queue types (FILO, FIFO, etc) from this class
+	"""
 
 	name = ""
 	type = ""
@@ -101,6 +120,10 @@ class Queue:
 				
 class FifoQueue(Queue):
 
+	"""
+		FIFO Queue: First message in is the first message out. (Queue)
+	"""
+		
 	def __init__(self, name, size, overflow):
 		Queue.__init__(self, name, "fifo", size, overflow)
 
@@ -114,6 +137,10 @@ class FifoQueue(Queue):
 
 class FiloQueue(Queue):
 
+	"""
+		FILO Queue: First message in is the first out. (Stack)
+	"""
+
 	def __init__(self, name, size, overflow):
 		Queue.__init__(self, name, "filo", size, overflow)
 
@@ -125,14 +152,13 @@ class FiloQueue(Queue):
 
 		return(retResponse)
 
-class Message:
-
-	def __init__(self, type, publishDate):
-
-		self.type = type
-		self.publishDate = publishDate
-		
 class QueuePool:
+	
+	"""
+		Intermediary class between queues and the server's request handler.
+		This class takes care of creation, communication and access checking
+		for queues.
+	"""
 
 	queues = {}
 
@@ -153,7 +179,7 @@ class QueuePool:
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
 		if queueName not in self.queues:
-			raise QueueError, 201 # Unknown queue
+			raise DataqError, 201 # Unknown queue
 
 		queue = self.queues[queueName]
 		retResponse = queue.push(message)
@@ -166,7 +192,7 @@ class QueuePool:
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
 		if queueName not in self.queues:
-			raise QueueError, 201 # Unknown queue
+			raise DataqError, 201 # Unknown queue
 
 		queue = self.queues[queueName]
 		retResponse = queue.pop()
@@ -179,7 +205,7 @@ class QueuePool:
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
 		if queueName not in self.queues:
-			raise QueueError, 201 # Unknown queue
+			raise DataqError, 201 # Unknown queue
 
 		queue = self.queues[queueName]
 
@@ -205,6 +231,12 @@ class QueuePool:
 		
 class RequestHandler(SocketServer.BaseRequestHandler):
 
+	"""
+		Handle a single incomming connection by reading a request, processing 
+		it, delegating it to the queuePool and then transmitting the resulting
+		data (error, popped message, etc).
+	"""
+	
 	def __init__(self, request, client_address, server):
 		SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
@@ -238,7 +270,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
 						try:
 							response = self.process(line)
-						except QueueError, e:
+						except DataqError, e:
 							response = str(e) + "\n"
 
 						self.request.send(response)
@@ -269,7 +301,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		elif requestType.upper() == "CLEAR":
 			retResponse = self.processClear(data)
 		else:
-			raise QueueError, 102 # Unknown request type
+			raise DataqError, 102 # Unknown request type
 
 		return retResponse
 	
@@ -282,7 +314,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 			queueURI, data = data.split(" ", 1)
 			retResponse = queuePool.push(queueURI, data)
 		except ValueError:
-			raise QueueError, 101 # Bad syntax in request
+			raise DataqError, 101 # Bad syntax in request
 
 		return retResponse
 
@@ -295,7 +327,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 			queueURI = data
 			retResponse = queuePool.pop(queueURI)
 		except ValueError:
-			raise QueueError, 101 # Bad syntax in request
+			raise DataqError, 101 # Bad syntax in request
 
 		return retResponse
 
@@ -307,6 +339,10 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
+	"""
+		Basic socket server
+	"""
+
 	daemon_threads = True
 	allow_reuse_address = True
 
@@ -314,6 +350,11 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 		SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass)
 
 class Daemon:
+
+	"""
+		Daemonize the current process (detach it from the console).
+	"""
+	
 	def __init__(self):
 
 		try: 
@@ -322,7 +363,7 @@ class Daemon:
 				sys.exit(0) 
 		except OSError, e: 
 			print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
-			sys.exit(1)
+			sys.exit(-2)
 
 		os.chdir("/") 
 		os.setsid() 
@@ -335,10 +376,21 @@ class Daemon:
 				sys.exit(0) 
 		except OSError, e: 
 			print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
-			sys.exit(1) 
+			sys.exit(-2) 
 
 class ConfigParser(xmlproc.Application):
 
+	"""
+		XML Configuration file parser. This class is called by the XMLproc
+		reader (Config class) to handle everything in the configuration file.
+		
+		It populates the calling Config class with the server's global 
+		configuration values and creates/populates queues with the correct
+		settings.
+		
+		It contains defaults for omitted values in the configuration file
+	"""
+	
 	def handle_start_tag(self,name,attrs):
 		if (name == "dataq"):
 			self.handle_dataq_tag(attrs)
@@ -372,6 +424,11 @@ class ConfigParser(xmlproc.Application):
 		queuePool.createQueue(name, type, size, overflow)
 
 class Config:
+
+	"""
+		DataQ XML Configuration reader.
+	"""
+	
 	def __init__(self, configfiles, configOverrides):
 
 		finalConfigFile = None
@@ -432,7 +489,7 @@ if __name__ == "__main__":
 		config = Config(configFiles, configOverrides)
 	except IOError:
 		print "No config file found.. Aborting."
-		sys.exit(-1)
+		sys.exit(-3)
 
 	Log.verboseMsg("Starting server on address " + config.address + ":" + str(config.port))
 
@@ -447,4 +504,4 @@ if __name__ == "__main__":
 		sys.exit(0)
 	except socket.error, (errNr, errMsg):
 		Log.verboseErr("Socket already in use. Aborting...");
-		sys.exit(-1)
+		sys.exit(-2)
