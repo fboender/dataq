@@ -1,0 +1,36 @@
+PUSH test 1
+PUSH test 2
+PUSH test 3
+PUSH test 4
+PUSH test 5
+PUSH test 6
+POP test
+POP test
+POP test
+POP test
+POP test
+POP test
+PUSH test2 1
+PUSH test2 2
+PUSH test2 3
+PUSH test2 4
+PUSH test2 5
+PUSH test2 6
+POP test2
+POP test2
+POP test2
+POP test2
+POP test2
+POP test2
+PUSH test3 1
+PUSH test3 2
+PUSH test3 3
+PUSH test3 4
+PUSH test3 5
+PUSH test3 6
+POP test3
+POP test3
+POP test3
+POP test3
+POP test3
+POP test3
