@@ -114,6 +114,12 @@ class Queue:
 		retResponse = ""
 		
 		Log.verboseMsg("Pushing to " + self.name + ": " + message)
+		if len(self.queue) == self.size:
+			if self.overflow == "pop":
+				self.pop()
+			elif self.overflow == "deny":
+				raise DataqError, 203 # Queue is full
+				
 		self.queue.append(message)
 
 		return(retResponse)
