@@ -1,0 +1,6 @@
+PUSH test a
+PUSH test b
+PUSH test c
+POP test
+POP test
+POP test

@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<dataq>
+	<queue name='backup' />
+	<queue name='mp3' type='filo' size='20' overflow='pop'>
+	</queue>
+</dataq>

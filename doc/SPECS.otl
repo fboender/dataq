@@ -1,0 +1,101 @@
+:
+: This is a quick outline of the DataQ implementation. Herein are mixed
+: the protocol specifications, inner workings of the server/clients, etc.
+:
+: This document is in Vim Outliner (http://vimoutliner.org/) format.
+:
+: (C) 2005, Ferry Boender
+:
+[_] DataQ server
+	[_] Basics
+	[_] QueuePool
+		[_] Properties
+		[_] Methods
+			[_] STAT
+				: Get information on queues
+	[_] Queues
+		[_] Properties
+			[_] Name (required)
+			[_] Size (optional, default: 10)
+				: Maximum number of messages held in the queue
+			[_] Overflow (optional, default Deny)
+				[_] Pop
+					: When the queue overflows, a pop is done.
+				[_] Deny
+					: New messages are denied when the queue is full.
+			[_] Type (optional, default: fifo)
+				[_] FIFO
+					: First message in is the first message out (Stack).
+				[_] FILO
+					: First message in is the last message out (Queue).
+			[_] Method (optional, default: Singleton)
+				[_] Subscribe
+					: Clients subscribe to a queue and a message is not removed
+					: from the queue until each subscribed client has received
+					: it. This will require the client to supply a last-poll-date.
+				[_] Singleton
+					: A single client pops a single message from a queue. It is
+					: then removed.
+				[_] Syndicate
+					: Keep the maximum number of messages in the queue at all
+					: time, regardless of popping. Only usefull with FIFO queues
+			[_] Restrictions (optional)
+				[_] Read
+					: Clients can only read from the queue.
+					[_] Username (optional)
+					[_] Password
+					[_] IP (optional)
+				[_] Write
+					: Clients can only write to the queue.
+					[_] Username (optional)
+					[_] Password
+					[_] IP (optional)
+				[_] ReadWrite
+					: Clients can read and write from/to the queue.
+					[_] Username (optional)
+					[_] Password
+					[_] IP (optional)
+		[_] Methods
+			[_] PUSH
+				: Push a new message onto the queue
+			[_] POP
+				: Pop a message from the queue
+			[_] STAT
+				: Show information on a queue
+				[_] Name
+				[_] Size
+				[_] Overflow
+				[_] Type
+				[_] Method
+			[_] CLEAR
+				: Clear a queue; requires write access
+	[_] Messages
+		[_] Properties
+			[_] Type
+				[_] Message
+					: A single-lined message
+				[_] Data
+					: Binary data
+			[_] PushDate
+				: Date on which this message entered the queue
+			[_] PublishDate (optional)
+				: Date on which this item should become active
+				: FIXME: Will this increase the queue size??
+			[_] Publisher
+				[_] IP
+				[_] Username
+	Errors
+		Communication errors
+			100 - 200
+				101
+					Bad syntax in request
+				102
+					Unknown request type
+		Queue errors
+			200 - 300
+				201
+					Unknown queue
+				202
+					Access denied
+				203
+					Queue is full
