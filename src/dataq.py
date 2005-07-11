@@ -135,7 +135,14 @@ class Queue:
 		retResponse += "messages:" + str(len(self.queue)) + "\n"
 
 		return(retResponse)
-	
+
+	def clear(self):
+		retResponse = ""
+
+		self.queue = []
+
+		return(retResponse)
+
 class FifoQueue(Queue):
 
 	"""
@@ -263,6 +270,19 @@ class QueuePool:
 			
 		return (username, password, queueName)
 		
+	def clear(self, queueURI):
+		retResponse = ""
+		queue = None
+		username, password, queueName = self.parseQueueURI(queueURI)
+		
+		if queueName not in self.queues:
+			raise DataqError, 201 # Unknown queue
+
+		queue = self.queues[queueName]
+		retResponse = queue.clear()
+
+		return(retResponse)
+
 class RequestHandler(SocketServer.BaseRequestHandler):
 
 	"""
@@ -378,7 +398,17 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		return(retResponse)
 
 	def processClear(self, data):
-		print "CLEAR: ", data
+		global queuePool
+		
+		retResponse = ""
+		
+		try:
+			queueURI = data
+			retResponse = queuePool.clear(queueURI)
+		except ValueError:
+			raise DataqError, 101 # Bad syntax in request
+
+		return retResponse
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
