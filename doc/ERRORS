@@ -1,0 +1,15 @@
+The following errors can occur when communicating with the dataq server. Errors
+are in the form of:
+
+ERROR XXX DESCRIPTION
+
+
+Communication errors (100 through 200)
+	ERROR 101 Bad syntax in request
+	ERROR 102 Unknown request type
+
+Queue errors (200 through 300)
+	ERROR 201 Unknown queue
+	ERROR 202 Access denied
+	ERROR 203 Queue is full
+

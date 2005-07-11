@@ -1,0 +1,86 @@
+
+Commands
+------------------------------------------------------------------------------
+STAT
+	
+	Output statistics on the server or a queue.
+
+	Usage: STAT [[[username:]password@]queue_name]
+	
+PUSH
+
+	Push a message onto the queue.
+
+	Usage: PUSH [[username:]password@]queue_name message
+	
+POP
+
+	Pop a message from the queue and output the message.
+
+	Usage: POP [[username:]password@]queue_name
+	
+CLEAR
+
+	Usage: CLEAR [[username:]password@]queue_name
+
+Example sessions
+------------------------------------------------------------------------------
+
+Example session (Telnet):
+
+	(Useless output removed)
+
+	[todsah@squat]~/dev/dataq/src$ ./dataq.py -c ../config/dataq.xml.example -d
+
+	[todsah@squat]~/dev/dataq/src$ telnet localhost 50000
+	STAT 
+	queue:backup
+	queue:mp3
+
+	[todsah@squat]~/dev/dataq/src$ telnet localhost 50000
+	PUSH backup Message 1
+
+	[todsah@squat]~/dev/dataq/src$ telnet localhost 50000
+	PUSH backup Message 2
+
+	[todsah@squat]~/dev/dataq/src$ telnet localhost 50000
+	POP backup     
+	Message 1
+
+	[todsah@squat]~/dev/dataq/src$ telnet localhost 50000
+	POP backup
+	Message 2
+
+	[todsah@squat]~/dev/dataq/src$ killall dataq.py
+
+Example session (Netcat):
+
+	(Useless output removed)
+
+	[todsah@squat]~/dev/dataq/src$ ./dataq.py -c ../config/dataq.xml.example -d
+
+	[todsah@squat]~/dev/dataq/src$ echo "STAT" | netcat localhost 50000
+	queue:backup
+	queue:mp3
+
+	[todsah@squat]~/dev/dataq/src$ echo "PUSH backup Message 1" | netcat localhost 50000
+
+	[todsah@squat]~/dev/dataq/src$ echo "PUSH backup Message 2" | netcat localhost 50000
+
+	[todsah@squat]~/dev/dataq/src$ echo "PUSH backup" | netcat localhost 50000
+	ERROR 101 Bad syntax in request
+
+	[todsah@squat]~/dev/dataq/src$ echo "STAT backup" | netcat localhost 50000
+	name:backup
+	type:fifo
+	size:10
+	overflow:deny
+	messages:2
+
+	[todsah@squat]~/dev/dataq/src$ echo "POP backup" | netcat localhost 50000
+	Message 1
+
+	[todsah@squat]~/dev/dataq/src$ echo "POP backup" | netcat localhost 50000
+	Message 2
+
+	[todsah@squat]~/dev/dataq/src$ echo "POP backup" | netcat localhost 50000
