@@ -1,4 +1,8 @@
 #!/usr/bin/python
+#
+# Copyright (C), 2005 Ferry Boender. Released under the General Public License
+# For more information, see the COPYING file supplied with this program.                                                          
+#
 
 """
 DataQ: A simple message/data queueing server.
