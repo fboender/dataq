@@ -147,7 +147,7 @@ class FifoQueue(Queue):
 	def __init__(self, name, size, overflow):
 		Queue.__init__(self, name, "fifo", size, overflow)
 
-	def pop(self, password=None):
+	def pop(self):
 		retResponse = ""
 
 		Log.verboseMsg("POPing from " + self.name)
@@ -168,7 +168,7 @@ class FiloQueue(Queue):
 	def __init__(self, name, size, overflow):
 		Queue.__init__(self, name, "filo", size, overflow)
 
-	def pop(self, password=None):
+	def pop(self):
 		retResponse = ""
 
 		Log.verboseMsg("POPing from " + self.name)
@@ -200,7 +200,7 @@ class QueuePool:
 		self.queues[name] = newQueue
 
 	def push(self, queueURI, message):
-		retResponse = None
+		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
@@ -213,7 +213,7 @@ class QueuePool:
 		return(retResponse)
 
 	def pop(self, queueURI):
-		retResponse = None
+		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
@@ -226,7 +226,7 @@ class QueuePool:
 		return(retResponse)
 
 	def stat(self, queueURI):
-		retResponse = None
+		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
