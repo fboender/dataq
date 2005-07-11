@@ -7,3 +7,4 @@
 [ ] Inverse daemon option. (default = daemon, non-daemon is commandline option)
 [ ] Report server starting problems on stdout.
 [ ] syslog logging.
+[ ] init.d scripts.
