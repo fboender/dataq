@@ -1,6 +1,30 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<dataq>
+
+<!--
+DataQ v0.1 example configuration file.
+-->
+
+<!--
+	<dataq address="HOSTNAME" port="PORT" daemon="True/False">
+	
+	address         IP Address or hostname to listen on. Default is empty,
+	                which means it should listen on all addresses.
+	port            Port to listen on. Default is 50000.
+	daemon          Run as daemon (detach from terminal)?
+-->
+<dataq port="50000" daemon="False">
+	<!-- 
+	<queue name="NAME" type="FIFO/FILO" size="SIZE" overflow="deny/pop" />
+
+	name            Name of the queue. Must not contain spaces.
+	type            The type of queue. Either FIFO (First In, First Out) or
+	                FILO (First In, Last Out).
+	size            Maximum number of messages allowed in the queue.
+	overflow        Action to take when the queue is full. 'deny' means no
+	                new messages may be pushed onto the queue. 'pop' means a
+					pop is performed when a push is done onto a full queue. The
+					actual result depends on the qeueu type.
+	-->
 	<queue name='backup' />
-	<queue name='mp3' type='filo' size='20' overflow='pop'>
-	</queue>
+	<queue name='mp3' type='fifo' size='1' overflow='pop' />
 </dataq>
