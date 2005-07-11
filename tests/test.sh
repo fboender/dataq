@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for TEST in `ls -1 -d *| grep -v 'test.sh' | grep -v 'CVS'`; do
+for TEST in `ls -1 -d test*| grep -v 'test.sh'`; do
 	echo -n "Running test in $TEST... "
 	../src/dataq.py -dV -c $TEST/dataq.xml > dataq.out
 
