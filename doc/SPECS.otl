@@ -1,6 +1,8 @@
 :
 : This is a quick outline of the DataQ implementation. Herein are mixed
 : the protocol specifications, inner workings of the server/clients, etc.
+: It's not done yet. Features that have been implemented are marked [X]. It's
+: not certain all mentioned features will be implemented.
 :
 : This document is in Vim Outliner (http://vimoutliner.org/) format.
 :
@@ -10,8 +12,8 @@
 	[_] Basics
 	[_] QueuePool
 		[_] Properties
-		[_] Methods
-			[_] STAT
+		[X] Methods
+			[X] STAT
 				: Get information on queues
 	[_] Queues
 		[_] Properties
@@ -56,23 +58,23 @@
 					[_] Password
 					[_] IP (optional)
 		[_] Methods
-			[_] PUSH
+			[X] PUSH
 				: Push a new message onto the queue
-			[_] POP
+			[X] POP
 				: Pop a message from the queue
 			[_] STAT
 				: Show information on a queue
-				[_] Name
-				[_] Size
-				[_] Overflow
-				[_] Type
+				[X] Name
+				[X] Size
+				[X] Overflow
+				[X] Type
 				[_] Method
 			[_] CLEAR
 				: Clear a queue; requires write access
 	[_] Messages
 		[_] Properties
 			[_] Type
-				[_] Message
+				[X] Message
 					: A single-lined message
 				[_] Data
 					: Binary data
