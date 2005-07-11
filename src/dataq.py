@@ -97,8 +97,6 @@ class Queue:
 	size = 0
 	overflow = ""
 
-	queue = []
-
 	def __init__(self, name, type, size, overflow):
 		self.name = name
 		self.type = type
@@ -114,6 +112,7 @@ class Queue:
 		retResponse = ""
 		
 		Log.verboseMsg("Pushing to " + self.name + ": " + message)
+
 		if len(self.queue) == self.size:
 			if self.overflow == "pop":
 				self.pop()
@@ -124,17 +123,34 @@ class Queue:
 
 		return(retResponse)
 				
+	def stat(self):
+		retResponse = ""
+
+		Log.verboseMsg("Statistics for " + self.name)
+
+		retResponse += "name:" + self.name + "\n"
+		retResponse += "type:" + self.type + "\n"
+		retResponse += "size:" + str(self.size) + "\n"
+		retResponse += "overflow:" + self.overflow + "\n"
+		retResponse += "messages:" + str(len(self.queue)) + "\n"
+
+		return(retResponse)
+	
 class FifoQueue(Queue):
 
 	"""
 		FIFO Queue: First message in is the first message out. (Queue)
 	"""
 		
+	queue = []
+
 	def __init__(self, name, size, overflow):
 		Queue.__init__(self, name, "fifo", size, overflow)
 
 	def pop(self, password=None):
 		retResponse = ""
+
+		Log.verboseMsg("POPing from " + self.name)
 
 		if len(self.queue) > 0:
 			retResponse = self.queue.pop(0)
@@ -147,11 +163,15 @@ class FiloQueue(Queue):
 		FILO Queue: First message in is the first out. (Stack)
 	"""
 
+	queue = []
+
 	def __init__(self, name, size, overflow):
 		Queue.__init__(self, name, "filo", size, overflow)
 
 	def pop(self, password=None):
 		retResponse = ""
+
+		Log.verboseMsg("POPing from " + self.name)
 
 		if len(self.queue) > 0:
 			retResponse = self.queue.pop()
@@ -210,13 +230,21 @@ class QueuePool:
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
 		
-		if queueName not in self.queues:
-			raise DataqError, 201 # Unknown queue
+		Log.verboseWarn(queueURI)
 
-		queue = self.queues[queueName]
+		if queueURI == "":
 
-		retResponse += "name:" + queue.getName()+"\n"
-		retResponse += "type:" + queue.getType()+"\n"
+			retResponse = ""
+
+			for queueName in self.queues:
+				queue = self.queues[queueName]
+				retResponse += "queue:" + queue.name + "\n"
+		else:
+			if queueName not in self.queues:
+				raise DataqError, 201 # Unknown queue
+
+			queue = self.queues[queueName]
+			retResponse = queue.stat()
 
 		return(retResponse)
 
@@ -296,6 +324,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 			requestType = data
 			requestType, data = data.split(" ", 1)
 		except ValueError:
+			data = ""
 			pass
 
 		if requestType.upper() == "PUSH":
@@ -338,7 +367,15 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		return retResponse
 
 	def processStat(self, data):
-		print "STAT: ", data
+		global queuePool
+
+		retResponse = ""
+
+		queueURI = data
+
+		retResponse = queuePool.stat(queueURI)
+
+		return(retResponse)
 
 	def processClear(self, data):
 		print "CLEAR: ", data
