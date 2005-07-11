@@ -67,8 +67,8 @@ class Log:
 	def verbose(type, msg):
 		global verbose
 
-		#if verbose:
-		print "[" + type + "] " + msg
+		if verbose:
+			print "[" + type + "] " + msg
 		
 	def verboseMsg(msg):
 		Log.verbose("m", msg)
@@ -497,8 +497,8 @@ class Config:
 			setattr(self, configOverride, configOverrides[configOverride])
 
 if __name__ == "__main__":
+	global verbose
 	global optlist 
-	global config
 
 	try:
 		params, args = getopt.getopt(sys.argv[1:], 'a:p:c:vVd')
@@ -507,6 +507,8 @@ if __name__ == "__main__":
 		print __doc__
 		print 'usage : %s %s' % (sys.argv[0], usageStr)
 		sys.exit(-1)    
+
+	verbose = False
 
 	configFiles = ["/etc/dataq.xml", "dataq.xml"]
 	configOverrides = {}
@@ -521,9 +523,9 @@ if __name__ == "__main__":
 			configOverrides["port"] = int(a[1])
 		if a[0] == "-d":
 			configOverrides["daemon"] = True
-		if a[0] == "-V":
-			configOverrides["verbose"] = True
 
+		if a[0] == "-V":
+			verbose = True
 		if a[0] == "-v":
 			print "msgserv v0.1. (C) 2005, Ferry Boender"
 			sys.exit(0)
