@@ -1,0 +1,6 @@
+PUSH test1 1
+PUSH test2 1
+PUSH test2 2
+STAT
+STAT test1
+STAT test2

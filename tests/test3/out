@@ -1,0 +1,13 @@
+queue:test1
+queue:test2
+name:test1
+type:fifo
+size:5
+overflow:pop
+messages:1
+name:test2
+type:filo
+size:9
+overflow:deny
+messages:2
+

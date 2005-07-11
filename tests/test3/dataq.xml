@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<dataq>
+	<queue name='test1' type='fifo' size='5' overflow='pop' />
+	<queue name='test2' type='filo' size='9' overflow='deny' />
+</dataq>
