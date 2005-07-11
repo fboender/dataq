@@ -1,0 +1,46 @@
+
+DataQ v0.1
+
+Copyright (C) 2005, Ferry Boender <f DOT boender AT electricmonk DOT nl>
+Licensed under the General Public License (GPL), see COPYING file 
+provided with this program.
+
+About
+-----------------------------------------------------------------------------
+
+DataQ is a simple data and message queuing server which uses a simple
+plain-text protocol. It is therefor very easy to implement clients for. The
+server is multi-threaded and implements FIFO (First In, First Out) and FILO
+(First In, Last Out) queues, has queue size restrictions and overflow handling.
+
+In the future authentication will be implemented on an IP/Username/Password 
+basis. For now the server only understands single-line plain-text messages, but
+binary queue data will also be supported.
+
+Configuration
+-----------------------------------------------------------------------------
+
+dataq searches for a configuration file:
+
+	/etc/dataq.xml
+	./dataq.xml
+
+and, if the -c flag is specified for the file specified as a parameter to the
+-c flag.
+
+An example configuration file can be found in the config/ directory. It
+contains descriptions of the available configuration directives.
+
+Running
+-----------------------------------------------------------------------------
+
+usage : ./dataq.py [-v] [-V] [-a address] [-p port]
+
+  -c Configuration file to use
+  -a IP address to listen on. (overrides config) Default: All IPs
+  -p Port to listen on. (overrides config) Default: 50000.
+  -d Run in daemon mode (detach from terminal)
+  -V Verbose mode. Lots-o-output.
+  -v Print version information
+
+
