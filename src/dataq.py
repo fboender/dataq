@@ -22,9 +22,10 @@ usageStr =\
 #
 # Exit codes:
 # 
-#  -1 Incorrect usage
-#  -2 Fatal system resource problem
-#  -3 Configuration file problem
+#  1 Incorrect usage
+#  2 Fatal system resource problem
+#  3 Configuration file problem
+#  4 Import error; missing python package
 
 import sys
 import getopt
@@ -32,7 +33,11 @@ import os
 import SocketServer
 import socket
 import select
-from xml.parsers.xmlproc import xmlproc
+try:
+	from xml.parsers.xmlproc import xmlproc
+except ImportError:
+	sys.stderr.write("Error while importing xmlproc. Is python-xml installed? Aborting.\n");
+	sys.exit(4);
 
 class DataqError(Exception):
 
