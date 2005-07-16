@@ -12,7 +12,7 @@ DataQ v0.1 example configuration file.
 	port            Port to listen on. Default is 50000.
 	daemon          Run as daemon (detach from terminal)?
 -->
-<dataq port="50000" daemon="False">
+<dataq port="50000">
 	<!-- 
 	<queue name="NAME" type="FIFO/FILO" size="SIZE" overflow="deny/pop" />
 
