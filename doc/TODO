@@ -1,6 +1,3 @@
-[ ] True/False configuration values don't really work. Every value is treated 
-    as true. (<dataq daemon='false'>)
-[ ] Authentication
 [ ] Stress-testing
 [ ] Static queues (POPing doesn't actually pop, just returns the last value).
     Maybe make this into a new Request type
@@ -8,3 +5,4 @@
 [ ] Report server starting problems on stdout.
 [ ] syslog logging.
 [ ] init.d scripts.
+[ ] Handle XML parsing errors.
