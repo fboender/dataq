@@ -33,12 +33,24 @@ import os
 import SocketServer
 import socket
 import select
+from xml.dom.ext.reader import Sax
+from xml import xpath
 try:
 	from xml.parsers.xmlproc import xmlproc
 except ImportError:
 	sys.stderr.write("Error while importing xmlproc. Is python-xml installed? Aborting.\n");
 	sys.exit(4);
 
+def str2bool(string):
+	retBool = None
+	
+	if string.lower() == "true":
+		retBool = True
+	else:
+		retBool = False
+
+	return(retBool)
+		
 class DataqError(Exception):
 
 	""" 
@@ -46,6 +58,8 @@ class DataqError(Exception):
 	"""
 
 	messages = {
+		001: "Error in config",
+
 		101: "Bad syntax in request",
 		102: "Unknown request type",
 
@@ -93,6 +107,39 @@ class Log:
 	verboseWarn = staticmethod(verboseWarn)
 	verboseErr = staticmethod(verboseErr)
 	
+class Access:
+
+	"""
+		Access Control class. One instance of this class contains (non) access
+		information for a single host/user/password.
+	"""
+
+	sense = "allow"
+	password = ""
+	username = ""
+	host = ""
+
+	def __init__(self, sense = "allow", password = "", username = "", host = ""):
+		# FIXME: Throw errors when wrong types. Use self.set*
+		self.sense = sense
+		self.password = password
+		self.username = username
+		self.host = host
+
+	def setSense(self, sense):
+		self.sense = sense
+
+	def setQueue(self, queue):
+		self.queue = queue
+
+	def setPassword(self, password):
+		self.password = password
+
+	def setUsername(self, username):
+		self.username = username
+
+	def setHostname(self, hostname):
+		self.hostname = hostname
 
 class Queue:
 
@@ -105,6 +152,8 @@ class Queue:
 	type = ""
 	size = 0
 	overflow = ""
+
+	accessList = []
 
 	def __init__(self, name, type, size, overflow):
 		self.name = name
@@ -152,6 +201,24 @@ class Queue:
 
 		return(retResponse)
 
+	def addAccess(self, access):
+		Log.verboseMsg("Adding '" + (access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queue '" + self.name + "'")
+		self.accessList.append(access)
+
+	def hasAccess(self, password, username, host):
+		retAccess = None
+
+		for access in self.accessList:
+
+			if access.password == password and access.username == username:
+				if (access.host != "" and access.host == host) or (access.host == ""):
+					if access.sense == "allow":
+						retAccess = True
+					else:
+						retAccess = False
+			
+		return(retAccess)
+		
 class FifoQueue(Queue):
 
 	"""
@@ -203,6 +270,7 @@ class QueuePool:
 	"""
 
 	queues = {}
+	accessList = []
 
 	def __init__(self):
 		pass
@@ -210,12 +278,46 @@ class QueuePool:
 	def createQueue(self, name, type, size, overflow):
 		if type == "fifo":
 			newQueue = FifoQueue(name, size, overflow)
-		if type == "filo":
+		elif type == "filo":
 			newQueue = FiloQueue(name, size, overflow)
+		else:
+			# FIXME: This raises a DataqError, but it's actually
+			# an error in the configuration file. This should
+			# probably raise something like ConfigError
+			raise DataqError, 001
 
 		self.queues[name] = newQueue
 
-	def push(self, queueURI, message):
+		return(newQueue)
+
+	def addAccess(self, access):
+		Log.verboseMsg("Adding '" + str(access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queuePool")
+		self.accessList.append(access)
+
+	def hasAccess(self, password, username, host):
+
+		for access in self.accessList:
+
+			matchHost = False
+			matchUsername = False
+			matchPassword = False
+
+			if access.host != "" and host == access.host:
+				matchHost = True
+			if access.username != "" and username == access.username:
+				matchUsername = True
+			if access.password != "" and password == access.password:
+				matchPassword = True
+
+			if (access.host == "" or matchHost) and (access.username == "" or matchUsername) and (access.password == "" or matchPassword):
+				if access.sense == "deny":
+					return(False)
+				if access.sense == "allow" or access.sense == "":
+					return(True)
+				
+		return(None)
+		
+	def push(self, host, queueURI, message):
 		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
@@ -224,6 +326,20 @@ class QueuePool:
 			raise DataqError, 201 # Unknown queue
 
 		queue = self.queues[queueName]
+
+		qpAccess = queuePool.hasAccess(password, username, host)
+		qAccess = queue.hasAccess(password, username, host)
+
+		Log.verboseMsg("QueuePoolAccess = " + str(qpAccess))
+		Log.verboseMsg("QueueAccess     = " + str(qAccess))
+
+		if qAccess == False:
+			raise DataqError, 202
+
+		if qAccess == None:
+			if not qpAccess == True:
+				raise DataqError, 202
+			
 		retResponse = queue.push(message)
 
 		return(retResponse)
@@ -264,21 +380,6 @@ class QueuePool:
 
 		return(retResponse)
 
-	def parseQueueURI(self, queueURI):
-		username = ""
-		password = ""
-		queueName = ""
-
-		try:
-			queueName = queueURI
-			authentication, queueName = queueURI.split("@", 1)
-			password = authentication
-			username, password = authentication.split(":", 1)
-		except ValueError:
-			pass
-			
-		return (username, password, queueName)
-		
 	def clear(self, queueURI):
 		retResponse = ""
 		queue = None
@@ -292,6 +393,21 @@ class QueuePool:
 
 		return(retResponse)
 
+	def parseQueueURI(self, queueURI):
+		password = ""
+		username = ""
+		queueName = ""
+
+		try:
+			queueName = queueURI
+			authentication, queueName = queueURI.split("@", 1)
+			password = authentication
+			username, password = authentication.split(":", 1)
+		except ValueError:
+			pass
+			
+		return (username, password, queueName)
+		
 class RequestHandler(SocketServer.BaseRequestHandler):
 
 	"""
@@ -376,7 +492,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		
 		try:
 			queueURI, data = data.split(" ", 1)
-			retResponse = queuePool.push(queueURI, data)
+			retResponse = queuePool.push(self.client_address[0], queueURI, data)
 		except ValueError:
 			raise DataqError, 101 # Bad syntax in request
 
@@ -460,51 +576,6 @@ class Daemon:
 			print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
 			sys.exit(-2) 
 
-class ConfigParser(xmlproc.Application):
-
-	"""
-		XML Configuration file parser. This class is called by the XMLproc
-		reader (Config class) to handle everything in the configuration file.
-		
-		It populates the calling Config class with the server's global 
-		configuration values and creates/populates queues with the correct
-		settings.
-		
-		It contains defaults for omitted values in the configuration file
-	"""
-	
-	def handle_start_tag(self,name,attrs):
-		if (name == "dataq"):
-			self.handle_dataq_tag(attrs)
-		if (name == "queue"):
-			self.handle_queue_tag(attrs)
-
-	def handle_end_tag(self,name):
-		pass
-
-	def handle_data(self,data,start,end):
-		pass
-
-	def handle_dataq_tag(self, attrs):
-		global queuePool
-
-		self.config.address = attrs.get("address", "")
-		self.config.port = int(attrs.get("port", "50000"))
-		self.config.verbose = bool(attrs.get("verbose", False))
-		self.config.daemon = bool(attrs.get("daemon", False))
-
-		queuePool = QueuePool()
-
-	def handle_queue_tag(self, attrs):
-		global queuePool
-
-		name = attrs["name"]
-		type = attrs.get("type", "fifo")
-		size = int(attrs.get("size", "10"))
-		overflow = attrs.get("overflow", "deny")
-
-		queuePool.createQueue(name, type, size, overflow)
-
 class Config:
 
 	"""
@@ -524,16 +595,106 @@ class Config:
 				pass
 	
 		if finalConfigFile:
-			configParser = ConfigParser()
-			configParser.config = self
-			parser = xmlproc.XMLProcessor()
-			parser.set_application(configParser)
-			parser.parse_resource(finalConfigFile)
+			document = Sax.Reader().fromStream(open(finalConfigFile,'r'))
+			
+			dataqNodes = xpath.Evaluate('dataq', document)
+
+			for dataqNode in dataqNodes:
+				self.handleDataqNode(dataqNode)
+
+			# FIXME: Free the Sax reader??
 		else:
 			raise IOError
 
 		for configOverride in configOverrides:
 			setattr(self, configOverride, configOverrides[configOverride])
+
+	def handleDataqNode(self, node):
+		global queuePool # FIXME: Globals are ugly.
+
+		self.address = ""
+		self.port = 50000
+		self.verbose = False
+		self.daemon = False
+
+		for attribute in node.attributes:
+			if attribute.nodeName == "address":
+				self.address = str(attribute.nodeValue)
+			if attribute.nodeName == "port":
+				self.port = int(attribute.nodeValue)
+			if attribute.nodeName == "verbose": # FIXME: doesn't work
+				self.verbose = str2bool(attribute.nodeValue)
+				print type(self.verbose)
+				print self.verbose
+			if attribute.nodeName == "daemon": # FIXME: doesn't work
+				self.daemon = str2bool(attribute.nodeValue)
+				print type(self.daemon)
+				print self.daemon
+			
+		queuePool = QueuePool()
+
+		accessNodes = xpath.Evaluate('access', node)
+		for accessNode in accessNodes:
+			self.handleAccessNode(accessNode, queuePool)
+
+		queueNodes = xpath.Evaluate('queue', node)
+		for queueNode in queueNodes:
+			self.handleQueueNode(queueNode, queuePool)
+
+	def handleQueueNode(self, node, queuePool):
+
+		name = ""
+		type = "fifo"
+		size = 10
+		overflow = ""
+
+		for attribute in node.attributes:
+			if attribute.nodeName == "name":
+				name = attribute.nodeValue
+			if attribute.nodeName == "type":
+				type = attribute.nodeValue
+			if attribute.nodeName == "size": 
+				size = attribute.nodeValue
+			if attribute.nodeName == "overflow":
+				overflow = attribute.nodeValue
+
+		queue = queuePool.createQueue(name, type, size, overflow)
+
+		accessNodes = xpath.Evaluate('access', node)
+		for accessNode in accessNodes:
+			self.handleAccessNode(accessNode, queuePool, queue)
+
+	def handleAccessNode(self, node, queuePool, queue = None):
+
+		sense = "allow"
+		password = ""
+		username = ""
+		host = ""
+
+		for attribute in node.attributes:
+			if attribute.nodeName == "sense":
+				sense = attribute.nodeValue
+
+		passwordText = xpath.Evaluate('password/child::text()', node)
+		if len(passwordText) > 0:
+			password = passwordText[0].data
+
+		usernameText = xpath.Evaluate('username/child::text()', node)
+		if len(usernameText) > 0:
+			username = usernameText[0].data
+
+		hostText = xpath.Evaluate('host/child::text()', node)
+		if len(hostText) > 0:
+			host = hostText[0].data
+			
+		if queue != None:
+			queue.addAccess(Access(sense, password, username, host))
+		else:
+			if queuePool != None:
+				queuePool.addAccess(Access(sense, password, username, host))
+			else:
+				# FIXME: Raise error
+				pass
 
 if __name__ == "__main__":
 	global verbose
@@ -589,3 +750,4 @@ if __name__ == "__main__":
 	except socket.error, (errNr, errMsg):
 		Log.verboseErr("Socket already in use. Aborting...");
 		sys.exit(-2)
+
