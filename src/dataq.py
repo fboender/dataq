@@ -153,8 +153,6 @@ class Queue:
 	size = 0
 	overflow = ""
 
-	accessList = []
-
 	def __init__(self, name, type, size, overflow):
 		self.name = name
 		self.type = type
@@ -203,21 +201,53 @@ class Queue:
 
 	def addAccess(self, access):
 		Log.verboseMsg("Adding '" + (access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queue '" + self.name + "'")
+		access.queuename = self.name
 		self.accessList.append(access)
 
+#	def hasAccess(self, password, username, host):
+#		retAccess = None
+#
+#		for access in self.accessList:
+#
+#			if access.password == password and access.username == username:
+#				if (access.host != "" and access.host == host) or (access.host == ""):
+#					if access.sense == "allow":
+#						retAccess = True
+#					else:
+#						retAccess = False
+#			
+#		return(retAccess)
+
 	def hasAccess(self, password, username, host):
-		retAccess = None
 
 		for access in self.accessList:
 
-			if access.password == password and access.username == username:
-				if (access.host != "" and access.host == host) or (access.host == ""):
-					if access.sense == "allow":
-						retAccess = True
-					else:
-						retAccess = False
-			
-		return(retAccess)
+			print "access.queuename= ", access.queuename
+			print "access.sense    = ", access.sense
+			print "access.host     = ", access.host
+			print "access.username = ", access.username
+			print "access.password = ", access.password
+			print
+
+			matchHost = False
+			matchUsername = False
+			matchPassword = False
+
+			if access.host != "" and host == access.host:
+				matchHost = True
+			if access.username != "" and username == access.username:
+				matchUsername = True
+			if access.password != "" and password == access.password:
+				matchPassword = True
+
+			if (access.host == "" or matchHost) and (access.username == "" or matchUsername) and (access.password == "" or matchPassword):
+				if access.sense == "deny":
+					return(False)
+				if access.sense == "allow" or access.sense == "":
+					return(True)
+				
+		return(None)
+
 		
 class FifoQueue(Queue):
 
@@ -228,6 +258,7 @@ class FifoQueue(Queue):
 	queue = []
 
 	def __init__(self, name, size, overflow):
+		self.accessList = []
 		Queue.__init__(self, name, "fifo", size, overflow)
 
 	def pop(self):
@@ -249,6 +280,7 @@ class FiloQueue(Queue):
 	queue = []
 
 	def __init__(self, name, size, overflow):
+		self.accessList = []
 		Queue.__init__(self, name, "filo", size, overflow)
 
 	def pop(self):
@@ -270,10 +302,9 @@ class QueuePool:
 	"""
 
 	queues = {}
-	accessList = []
 
 	def __init__(self):
-		pass
+		self.accessList = []
 	
 	def createQueue(self, name, type, size, overflow):
 		if type == "fifo":
@@ -316,7 +347,25 @@ class QueuePool:
 					return(True)
 				
 		return(None)
-		
+
+	def checkAccess(self, password, username, host, queue = None):
+		qpAccess = queuePool.hasAccess(password, username, host)
+		Log.verboseMsg("QueuePoolAccess = " + str(qpAccess))
+
+		if queue != None:
+			qAccess = queue.hasAccess(password, username, host)
+			Log.verboseMsg("QueueAccess     = " + str(qAccess))
+
+			if qAccess == False:
+				raise DataqError, 202
+
+			if qAccess == None:
+				if not qpAccess == True:
+					raise DataqError, 202
+		else:
+			if not qpAccess == True:
+				raise DataqError, 202
+				
 	def push(self, host, queueURI, message):
 		retResponse = ""
 		queue = None
@@ -327,24 +376,13 @@ class QueuePool:
 
 		queue = self.queues[queueName]
 
-		qpAccess = queuePool.hasAccess(password, username, host)
-		qAccess = queue.hasAccess(password, username, host)
+		self.checkAccess(password, username, host, queue);
 
-		Log.verboseMsg("QueuePoolAccess = " + str(qpAccess))
-		Log.verboseMsg("QueueAccess     = " + str(qAccess))
-
-		if qAccess == False:
-			raise DataqError, 202
-
-		if qAccess == None:
-			if not qpAccess == True:
-				raise DataqError, 202
-			
 		retResponse = queue.push(message)
 
 		return(retResponse)
 
-	def pop(self, queueURI):
+	def pop(self, host, queueURI):
 		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
@@ -353,11 +391,14 @@ class QueuePool:
 			raise DataqError, 201 # Unknown queue
 
 		queue = self.queues[queueName]
+
+		self.checkAccess(password, username, host, queue);
+
 		retResponse = queue.pop()
 
 		return(retResponse)
 
-	def stat(self, queueURI):
+	def stat(self, host, queueURI):
 		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
@@ -365,6 +406,8 @@ class QueuePool:
 		Log.verboseWarn(queueURI)
 
 		if queueURI == "":
+
+			self.checkAccess(password, username, host);
 
 			retResponse = ""
 
@@ -376,11 +419,14 @@ class QueuePool:
 				raise DataqError, 201 # Unknown queue
 
 			queue = self.queues[queueName]
+
+			self.checkAccess(password, username, host, queue);
+
 			retResponse = queue.stat()
 
 		return(retResponse)
 
-	def clear(self, queueURI):
+	def clear(self, host, queueURI):
 		retResponse = ""
 		queue = None
 		username, password, queueName = self.parseQueueURI(queueURI)
@@ -389,6 +435,9 @@ class QueuePool:
 			raise DataqError, 201 # Unknown queue
 
 		queue = self.queues[queueName]
+
+		self.checkAccess(password, username, host, queue);
+
 		retResponse = queue.clear()
 
 		return(retResponse)
@@ -505,7 +554,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		
 		try:
 			queueURI = data
-			retResponse = queuePool.pop(queueURI)
+			retResponse = queuePool.pop(self.client_address[0], queueURI)
 		except ValueError:
 			raise DataqError, 101 # Bad syntax in request
 
@@ -518,7 +567,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
 		queueURI = data
 
-		retResponse = queuePool.stat(queueURI)
+		retResponse = queuePool.stat(self.client_address[0], queueURI)
 
 		return(retResponse)
 
@@ -529,7 +578,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		
 		try:
 			queueURI = data
-			retResponse = queuePool.clear(queueURI)
+			retResponse = queuePool.clear(self.client_address[0], queueURI)
 		except ValueError:
 			raise DataqError, 101 # Bad syntax in request
 
@@ -622,14 +671,10 @@ class Config:
 				self.address = str(attribute.nodeValue)
 			if attribute.nodeName == "port":
 				self.port = int(attribute.nodeValue)
-			if attribute.nodeName == "verbose": # FIXME: doesn't work
+			if attribute.nodeName == "verbose":
 				self.verbose = str2bool(attribute.nodeValue)
-				print type(self.verbose)
-				print self.verbose
-			if attribute.nodeName == "daemon": # FIXME: doesn't work
+			if attribute.nodeName == "daemon":
 				self.daemon = str2bool(attribute.nodeValue)
-				print type(self.daemon)
-				print self.daemon
 			
 		queuePool = QueuePool()
 
@@ -687,11 +732,13 @@ class Config:
 		if len(hostText) > 0:
 			host = hostText[0].data
 			
+		access = Access(sense, password, username, host)
 		if queue != None:
-			queue.addAccess(Access(sense, password, username, host))
+			
+			queue.addAccess(access)
 		else:
 			if queuePool != None:
-				queuePool.addAccess(Access(sense, password, username, host))
+				queuePool.addAccess(access)
 			else:
 				# FIXME: Raise error
 				pass
