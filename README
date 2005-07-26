@@ -41,10 +41,74 @@ and, if the -c flag is specified for the file specified as a parameter to the
 An example configuration file can be found in the config/ directory. It
 contains descriptions of the available configuration directives.
 
+Access Control
+--------------
+
+Access Control works on a global Server level (all queues) and on individual
+queues.
+
+Each access block is in the form of:
+	<access [sense='...']>
+		[<host>IP</host>]
+		[<username>USERNAME</username>]
+		[<password>PASSWORD</password>]
+	</access>
+	
+Where everything between brackets ( '[' and ']' ) is optional.
+
+By placing these blocks inside the <dataq></dataq> and <queue></queue> blocks,
+one will eventually end up with two states after access has been checked for a
+connection:
+
+	* Server Access
+	* Queue Access
+
+Both can have three states:
+
+	Deny
+	Allow
+	Unspecified
+
+When the Queue Access state is unspecified (Not explicitly allowed or denied),
+then DataQ will look at the Server Access. If this is Deny or Unspecified,
+access to the queue will be denied.
+
+Access is checked on a first-match basis. The first <Access> block that
+explicitly denies or allows a user will be authoritative. This is seperate for
+Server Access and Queue Access. (i.e. Queue Access can override Server Access).
+
+So, for example, user 'john' at 127.0.0.1, with password 'johnspw', will be
+matched by:
+
+	<access sense='deny'>
+		<host>127.0.0.1</host>
+	</access>
+
+and
+
+	<access sense='deny'>
+		<username>john</username>
+	</access>
+
+but not by:
+
+	<access sense='deny'>
+		<host>127.0.0.1</host>
+		<username>pete</username>
+	</access>
+
+Pretty obvious, I'd say.
+
+NOTE: It is, at the moment, not yet possible to change the default global
+sense. So it is not possible to create a 'public' server. This has been done
+deliberately because DataQ is still vulnerable to DDoS attacks at this point in
+the development.
+
+
 Running
 -----------------------------------------------------------------------------
 
-usage : ./dataq.py [-v] [-V] [-a address] [-p port]
+usage : ./dataq.py [-v] [-V] [-c path] [-a address] [-p port]
 
   -c Configuration file to use
   -a IP address to listen on. (overrides config) Default: All IPs
