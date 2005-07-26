@@ -1,3 +1,6 @@
+[ ] Verbose is handled as global, should be config that is global.
+[ ] Verbose doesn't work as a configuration-file option.
+[ ] Request info should be passed around as an object or possibly a dict instead of seperate host, username, etc information.
 [ ] Stress-testing
 [ ] Static queues (POPing doesn't actually pop, just returns the last value).
     Maybe make this into a new Request type
