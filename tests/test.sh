@@ -1,6 +1,12 @@
 #!/bin/sh
 
-for TEST in `ls -1 -d test*| grep -v 'test.sh'`; do
+if [ "$1" != "" ]; then
+	TESTS="$1"
+else
+	TESTS="test*"
+fi
+
+for TEST in `ls -1 -d $TESTS| grep -v 'test.sh'`; do
 	echo -n "Running test in $TEST... "
 	../src/dataq.py -dV -c $TEST/dataq.xml > dataq.out
 	
@@ -14,7 +20,7 @@ for TEST in `ls -1 -d test*| grep -v 'test.sh'`; do
 	PID=`echo $TEMP | cut -d':' -f2`
 
 	cat $TEST/in | while read; 
-		do echo $REPLY | netcat localhost 50000 >> test.out; 
+		do echo $REPLY | netcat localhost 49999 >> test.out; 
 	done
 
 	kill $PID
@@ -48,3 +54,6 @@ for TEST in `ls -1 -d test*| grep -v 'test.sh'`; do
 	rm test.out
 	rm dataq.out
 done
+
+# Wait for dataq servers to exit
+sleep 2
