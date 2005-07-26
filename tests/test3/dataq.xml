@@ -1,42 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <dataq port="49999">
-	<access>
-		<host>127.0.0.1</host>
-		<username>john</username>
-		<password>secret</password>
-	</access>
-	<access>
-		<host>127.0.0.2</host>
-		<username>otherjohn</username>
-		<password>secret</password>
-	</access>
-	<access>
-		<hostname>127.0.0.1</hostname>
-		<username>richard</username>
-		<password>hispw</password>
-	</access>
-
-	<queue name='normal' type='fifo' size='10' overflow='deny'>
-		
-	</queue>
-
-	<queue name='denyhost'>
-		<access sense='deny'>
-			<host>127.0.0.1</host>
-		</access>
-	</queue>
-
-	<queue name='denyuser' type='fifo' size='10' overflow='deny'>
-		<access sense='deny'>
-			<username>john</username>
-		</access>
-	</queue>
-		
-	<queue name='allowuserpw'>
-		<access sense='allow'>
-			<username>pete</username>
-			<password>mypw</password>
-		</access>
-	</queue>
-		
+	<access><host>127.0.0.1</host></access>
+	<queue name='test1' type='fifo' size='5' overflow='pop' />
+	<queue name='test2' type='filo' size='9' overflow='deny' />
 </dataq>
