@@ -12,7 +12,31 @@ DataQ v0.1 example configuration file.
 	port            Port to listen on. Default is 50000.
 	daemon          Run as daemon (detach from terminal)?
 -->
-<dataq port="50000">
+<dataq port="50000" daemon="false" verbose="true">
+	<!-- 
+	Allow access to all queues that don't explicitly deny to be access from the 
+	localhost.
+	-->
+	<access>
+		<host>127.0.0.1</host>
+	</access>
+	<!--
+	Allow user 'john' with password 'johnspw' from everywhere for all queues
+	that dont explicitly disallow.
+	-->
+	<access>
+		<username>john</username>
+		<password>johnspw</password>
+	</access>
+	<!--
+	Allow user 'pete' with password 'petespw' from IP '192.168.1.5'.
+	-->
+	<access>
+		<host>192.168.1.5</host>
+		<username>pete</username>
+		<password>petespw</password>
+	</access>
+
 	<!-- 
 	<queue name="NAME" type="FIFO/FILO" size="SIZE" overflow="deny/pop" />
 
@@ -27,4 +51,12 @@ DataQ v0.1 example configuration file.
 	-->
 	<queue name='backup' />
 	<queue name='mp3' type='fifo' size='1' overflow='pop' />
+	<queue name='restricted' type='fifo' size='5' overflow='deny'>
+		<!--
+		Don't allow user 'john' to this queue (from anywhere)
+		-->
+		<access sense="deny">
+			<username>john</username>
+		</access>
+	</queue>
 </dataq>
