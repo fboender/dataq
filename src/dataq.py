@@ -691,7 +691,7 @@ class Config:
 		name = ""
 		type = "fifo"
 		size = 10
-		overflow = ""
+		overflow = "pop"
 
 		for attribute in node.attributes:
 			if attribute.nodeName == "name":
