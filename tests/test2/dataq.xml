@@ -1,5 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<dataq>
+<dataq port="49999">
+	<access><host>127.0.0.1</host></access>
 	<queue name='test' size='5' overflow='pop' />
 	<queue name='test2' size='5' overflow='deny' />
 	<queue name='test3' type='filo' size='5' overflow='pop' />
