@@ -699,7 +699,7 @@ class Config:
 			if attribute.nodeName == "type":
 				type = attribute.nodeValue
 			if attribute.nodeName == "size": 
-				size = attribute.nodeValue
+				size = int(attribute.nodeValue)
 			if attribute.nodeName == "overflow":
 				overflow = attribute.nodeValue
 
