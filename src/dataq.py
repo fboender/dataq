@@ -9,7 +9,7 @@ DataQ: A simple message/data queueing server.
 """
 
 usageStr =\
-	"""[-v] [-V] [-a address] [-p port]
+	"""[-v] [-V] [-c path] [-a address] [-p port]
 
   -c Configuration file to use
   -a IP address to listen on. (overrides config) Default: All IPs
