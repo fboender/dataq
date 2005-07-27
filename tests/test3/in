@@ -1,9 +1,6 @@
+PUSH test1 1
+PUSH test2 1
+PUSH test2 2
 STAT
-STAT john:secret@normal
-STAT otherjohn:secret@normal
-PUSH denyhost test
-PUSH denyuser test
-PUSH john:secret@denyuser test 
-PUSH john:secret@allowuserpw test
-PUSH pete:mypw@allowuserpw test
-STAT richard:hispw@denyuser
+STAT test1
+STAT test2
