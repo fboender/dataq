@@ -405,7 +405,7 @@ class QueuePool:
 		
 		Log.verboseWarn(queueURI)
 
-		if queueURI == "":
+		if queueName == "":
 
 			self.checkAccess(password, username, host);
 
@@ -774,7 +774,7 @@ if __name__ == "__main__":
 		if a[0] == "-V":
 			verbose = True
 		if a[0] == "-v":
-			print "msgserv v0.1. (C) 2005, Ferry Boender"
+			print "msgserv v0.2. (C) 2005, Ferry Boender"
 			sys.exit(0)
 
 	try:
