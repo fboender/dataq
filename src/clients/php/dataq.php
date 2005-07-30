@@ -1,22 +1,27 @@
 <?php
-#
-# Copyright (C), 2005 Ferry Boender. Released under the General Public License
-# For more information, see the COPYING file supplied with this program.                                                          
-#
-error_reporting(E_ALL);
+// 
+//  dataq.php
+//
+//  A client library for the DataQ message queueing server.
+//  (http://www.electricmonk.nl/index.php?page=DataQ
+//
+//  Copyright (C), 2005 Ferry Boender. 
+//  
+//  Released under the Lesser General Public License (LGPL)
+//  For more information, see the COPYING file supplied with this program.                                                          
+// 
 
-// Todo:
-//   * Set timeout on socket
-//   * Cleanup
-//   * Authentication
-//   * stuff.
+error_reporting(E_ALL);
 
 class Dataq {
 
 	public $address;
 	public $port;
+	public $username;
+	public $password;
 
-	public function __construct($address = "", $port = 0) {
+	public function __construct($address = "", $port = 0, $username = "", 
+		                        $password = "") {
 
 		if ($address === "") {
 			$address = "127.0.0.1";
@@ -28,16 +33,34 @@ class Dataq {
 
 		$this->address = $address;
 		$this->port = $port;
+		$this->username = $username;
+		$this->password = $password;
 
 		// Try the connection to see if the DataQ server is there.
 		$fp = @fsockopen($this->address, $this->port, $errno, $errstr, 30);
 		if (!$fp) {
-			throw new DataqException("Couldn't open a connection to the DataQ server.", 2);
+			throw new DataqException(
+				"Couldn't open a connection to the DataQ server.", 
+				2);
 		}
 
 		fclose($fp);
 	}
 
+	private function buildQueueURI($queueName = "") {
+		$queueURI = $queueName;
+
+		if ($this->password != "") {
+			$queueURI = $this->password."@".$queueURI;
+		}
+		if ($this->username != "") {
+			$queueURI = $this->username.":".$queueURI;
+		}
+
+		return($queueURI);
+
+	}
+	
 	private function doRequest($request) {
 		$fp = NULL;
 		$response = "";
@@ -51,7 +74,9 @@ class Dataq {
 
 		$fp = @fsockopen($this->address, $this->port, $errno, $errstr, 30);
 		if (!$fp) {
-			throw new DataqException("Couldn't open a connection to the DataQ server.", 2);
+			throw new DataqException(
+				"Couldn't open a connection to the DataQ server.", 
+				2);
 		}
 
 		fwrite($fp, $request);
@@ -74,7 +99,9 @@ class Dataq {
 	public function getQueues() {
 		$retQueues = array();
 
-		$response = $this->doRequest("STAT");
+		$queueURI = $this->buildQueueURI();
+		$response = $this->doRequest("STAT ".$queueURI);
+
 		array_pop($response); // Remove last newline
 
 		foreach($response as $queue) {
@@ -88,7 +115,9 @@ class Dataq {
 	public function getQueueInfo($queueName) {
 		$retQueueInfo = array();
 
-		$response = $this->doRequest("STAT ".$queueName);
+		$queueURI = $this->buildQueueURI($queueName);
+		$response = $this->doRequest("STAT ".$queueURI);
+
 		array_pop($response); // Remove last newline.
 
 		foreach($response as $queueInfo) {
@@ -100,17 +129,20 @@ class Dataq {
 	}
 
 	public function push($queueName, $message) {
-		$response = $this->doRequest("PUSH ".$queueName. " ".$message);
+		$queueURI = $this->buildQueueURI($queueName);
+		$response = $this->doRequest("PUSH ".$queueURI." ".$message);
 	}
 
 	public function pop($queueName) {
-		$response = $this->doRequest("POP ".$queueName);
+		$queueURI = $this->buildQueueURI($queueName);
+		$response = $this->doRequest("POP ".$queueURI);
 
 		return($response[0]);
 	}
 
 	public function clear($queueName) {
-		$response = $this->doRequest("CLEAR ".$queueName);
+		$queueURI = $this->buildQueueURI($queueName);
+		$response = $this->doRequest("CLEAR ".$queueURI);
 	}
 }
 
