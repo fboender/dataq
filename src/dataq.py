@@ -222,20 +222,6 @@ class Queue:
 		access.queuename = self.name
 		self.accessList.append(access)
 
-#	def hasAccess(self, password, username, host):
-#		retAccess = None
-#
-#		for access in self.accessList:
-#
-#			if access.password == password and access.username == username:
-#				if (access.host != "" and access.host == host) or (access.host == ""):
-#					if access.sense == "allow":
-#						retAccess = True
-#					else:
-#						retAccess = False
-#			
-#		return(retAccess)
-
 	def hasAccess(self, password, username, host):
 
 		for access in self.accessList:
