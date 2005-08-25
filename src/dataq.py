@@ -21,7 +21,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-
 """
 DataQ: A simple message/data queueing server.
 """
@@ -40,10 +39,10 @@ usageStr =\
 #
 # Exit codes:
 # 
-#  1 Incorrect usage
-#  2 Fatal system resource problem
-#  3 Configuration file problem
-#  4 Import error; missing python package
+#  -1 Incorrect usage
+#  -2 Fatal system resource problem
+#  -3 Configuration file problem
+#  -4 Import error; missing python package
 
 import sys
 import getopt
@@ -57,7 +56,7 @@ try:
 	from xml.parsers.xmlproc import xmlproc
 except ImportError:
 	sys.stderr.write("Error while importing xmlproc. Is python-xml installed? Aborting.\n");
-	sys.exit(4);
+	sys.exit(-4);
 
 def str2bool(string):
 	retBool = None
@@ -76,14 +75,45 @@ class DataqError(Exception):
 	"""
 
 	messages = {
-		001: "Error in config",
-
+		# Syntactic request errors
 		101: "Bad syntax in request",
 		102: "Unknown request type",
 
+		# Data errors
 		201: "Unknown queue",
 		202: "Access denied",
 		203: "Queue is full",
+	}
+
+	def __init__(self, value):
+		self.value = value
+		self.message = self.messages[self.value]
+
+	def getValue(self):
+		return(self.value)
+
+	def getMessage(self):
+		return(self.message)
+
+	def __str__(self):
+		return("ERROR " + str(self.value) + " " + self.message)
+
+class ConfigError(Exception):
+
+	""" 
+		DataQ Configuration file Error exception.
+		Thrown by Queue methods when wrong information is passed.
+	"""
+
+	messages = {
+		# Access rule definition errors
+		101: "Incorrect access rule position",
+		102: "Wrong value for sense",
+
+		# Queue definition errors
+		201: "Wrong value for type",
+		202: "Wrong value for size",
+		203: "Wrong value for overflow",
 	}
 
 	def __init__(self, value):
@@ -138,26 +168,13 @@ class Access:
 	host = ""
 
 	def __init__(self, sense = "allow", password = "", username = "", host = ""):
-		# FIXME: Throw errors when wrong types. Use self.set*
+		if sense != "allow" and sense != "deny":
+			raise ConfigError, 102 # Wrong value for sense
+		
 		self.sense = sense
 		self.password = password
 		self.username = username
 		self.host = host
-
-	def setSense(self, sense):
-		self.sense = sense
-
-	def setQueue(self, queue):
-		self.queue = queue
-
-	def setPassword(self, password):
-		self.password = password
-
-	def setUsername(self, username):
-		self.username = username
-
-	def setHostname(self, hostname):
-		self.hostname = hostname
 
 class Queue:
 
@@ -172,6 +189,13 @@ class Queue:
 	overflow = ""
 
 	def __init__(self, name, type, size, overflow):
+		if type != "filo" and type != "fifo":
+			raise ConfigError, 201 # Wrong value for type
+		if size < 1:
+			raise ConfigError, 202 # Wrong value for size
+		if overflow != "deny" and overflow != "pop":
+			raise ConfigError, 203 # Wrong value for overflow
+			
 		self.name = name
 		self.type = type
 		self.size = size
@@ -316,10 +340,7 @@ class QueuePool:
 		elif type == "filo":
 			newQueue = FiloQueue(name, size, overflow)
 		else:
-			# FIXME: This raises a DataqError, but it's actually
-			# an error in the configuration file. This should
-			# probably raise something like ConfigError
-			raise DataqError, 001
+			raise ConfigError, 201 # Wrong value for type
 
 		self.queues[name] = newQueue
 
@@ -633,9 +654,14 @@ class Config:
 
 	"""
 		DataQ XML Configuration reader.
+
+		Uses XPath to recurse into the tree, calling self.handleFooNode()
+		methods which in turn recurse into child nodes with XPath.
 	"""
 	
 	def __init__(self, configfiles, configOverrides):
+
+		# Find the first valid configuration file and use it.
 
 		finalConfigFile = None
 
@@ -659,6 +685,7 @@ class Config:
 		else:
 			raise IOError
 
+		# Override configuration file options with commandline options.
 		for configOverride in configOverrides:
 			setattr(self, configOverride, configOverrides[configOverride])
 
@@ -710,6 +737,7 @@ class Config:
 		queue = queuePool.createQueue(name, type, size, overflow)
 
 		accessNodes = xpath.Evaluate('access', node)
+
 		for accessNode in accessNodes:
 			self.handleAccessNode(accessNode, queuePool, queue)
 
@@ -737,14 +765,14 @@ class Config:
 			host = hostText[0].data
 			
 		access = Access(sense, password, username, host)
-		if queue != None:
 			
+		if queue != None:
 			queue.addAccess(access)
 		else:
 			if queuePool != None:
 				queuePool.addAccess(access)
 			else:
-				# FIXME: Raise error
+				raise ConfigError, 101 # Incorrect access rule position
 				pass
 
 if __name__ == "__main__":
@@ -785,6 +813,9 @@ if __name__ == "__main__":
 		config = Config(configFiles, configOverrides)
 	except IOError:
 		print "No config file found.. Aborting."
+		sys.exit(-3)
+	except ConfigError, e:
+		print "Error in configuration:", e.getMessage()
 		sys.exit(-3)
 
 	Log.verboseMsg("Starting server on address " + config.address + ":" + str(config.port))
