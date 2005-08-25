@@ -674,8 +674,12 @@ class Config:
 				pass
 	
 		if finalConfigFile:
-			document = Sax.Reader().fromStream(open(finalConfigFile,'r'))
-			
+			try:
+				document = Sax.Reader().fromStream(open(finalConfigFile,'r'))
+			except Exception, e:
+				print "Configuration syntax error:", e
+				sys.exit(-3)
+
 			dataqNodes = xpath.Evaluate('dataq', document)
 
 			for dataqNode in dataqNodes:

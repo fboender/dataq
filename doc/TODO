@@ -1,6 +1,8 @@
 v0.2 blocking:
 
 Non-blocking:
+[ ] Support for non-decimal host addresses.
+[ ] Queue data persistance across sessions (store queues in /var/...)
 [ ] Verbose is handled as global, should be config that is global.
 [ ] Verbose doesn't work as a configuration-file option.
 [ ] Request info should be passed around as an object or possibly a dict instead of seperate host, username, etc information.
@@ -11,4 +13,4 @@ Non-blocking:
 [ ] Report server starting problems on stdout.
 [ ] syslog logging.
 [ ] init.d scripts.
-[ ] Handle XML parsing errors.
+[ ] Queue objects raise ConfigError exceptions. This is ugly. Queue objects should raise QueueErrors and the configuration parser should catch these and throw ConfigErrors.
