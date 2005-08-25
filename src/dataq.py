@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# DataQ v0.2
+# DataQ v0.3
 #
 # DataQ: A simple message/data queueing server.
 # 
@@ -810,7 +810,7 @@ if __name__ == "__main__":
 		if a[0] == "-V":
 			verbose = True
 		if a[0] == "-v":
-			print "msgserv v0.2. (C) 2005, Ferry Boender"
+			print "msgserv v0.3. (C) 2005, Ferry Boender"
 			sys.exit(0)
 
 	try:

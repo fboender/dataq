@@ -1,6 +1,6 @@
 <?php
 // 
-// dataq.php v0.2
+// dataq.php v0.3
 //
 // A client library for the DataQ message queueing server.
 // (http://www.electricmonk.nl/index.php?page=DataQ
