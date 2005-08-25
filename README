@@ -39,7 +39,7 @@ Configuration
 		/etc/dataq.xml
 		./dataq.xml
 
-	and, if the -c flag is specified for the file specified as a parameter to
+	and, if the -c flag is specified, for the file specified as a parameter to
 	the -c flag.
 
 	An example configuration file can be found in the config/ directory. It
