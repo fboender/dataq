@@ -13,6 +13,12 @@ DataQ v0.3 example configuration file.
 	daemon          Run as daemon (detach from terminal)?
 -->
 <dataq port="50000" daemon="false" verbose="true">
+	<!--
+	Define where to store the PID (process ID) file so scripts can easily 
+	shut down the server. 
+	-->
+	<pidfile>/var/run/dataq.pid</pidfile>
+	
 	<!-- 
 	Allow access to all queues that don't explicitly deny to be access from the 
 	localhost.

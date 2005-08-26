@@ -14,3 +14,4 @@ Non-blocking:
 [ ] syslog logging.
 [ ] init.d scripts.
 [ ] Queue objects raise ConfigError exceptions. This is ugly. Queue objects should raise QueueErrors and the configuration parser should catch these and throw ConfigErrors.
+[ ] Clean up Daemon, Server and __main__. 

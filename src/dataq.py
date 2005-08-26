@@ -43,8 +43,10 @@ usageStr =\
 #  -2 Fatal system resource problem
 #  -3 Configuration file problem
 #  -4 Import error; missing python package
+#  -5 Daemon starting error
 
 import sys
+import signal
 import getopt
 import os 
 import SocketServer
@@ -114,6 +116,31 @@ class ConfigError(Exception):
 		201: "Wrong value for type",
 		202: "Wrong value for size",
 		203: "Wrong value for overflow",
+	}
+
+	def __init__(self, value):
+		self.value = value
+		self.message = self.messages[self.value]
+
+	def getValue(self):
+		return(self.value)
+
+	def getMessage(self):
+		return(self.message)
+
+	def __str__(self):
+		return("ERROR " + str(self.value) + " " + self.message)
+
+class DaemonError(Exception):
+
+	""" 
+	Daemon error exception
+	"""
+
+	messages = {
+		# 
+		101: "DataQ server already running",
+		102: "Couldn't log PID"
 	}
 
 	def __init__(self, value):
@@ -627,7 +654,13 @@ class Daemon:
 		Daemonize the current process (detach it from the console).
 	"""
 	
-	def __init__(self):
+	def __init__(self, pidfile):
+		
+		self.pidfile = pidfile
+
+		# Check if a previous daemon is running
+		if os.path.exists(self.pidfile):
+			raise DaemonError, 101
 
 		try: 
 			pid = os.fork() 
@@ -644,11 +677,27 @@ class Daemon:
 		try: 
 			pid = os.fork() 
 			if pid > 0:
-				Log.verboseMsg("PID: " + str(pid))
+				self.logPID(pid)
 				sys.exit(0) 
 		except OSError, e: 
 			print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
 			sys.exit(-2) 
+
+	def logPID(self, pid):
+		# Write the daemon PID to /var/run
+		try:
+			f = open(self.pidfile, 'w')
+			f.write(str(pid))
+			f.close()
+		except IOError, e:
+			raise DaemonError, 102 # Couldn't log PID
+
+		Log.verboseMsg("PID: " + str(pid))
+		
+	def cleanup(self):
+		# Clean up PID file
+		Log.verboseMsg("Cleaning up daemon process")
+		os.remove(self.pidfile)
 
 class Config:
 
@@ -700,6 +749,7 @@ class Config:
 		self.port = 50000
 		self.verbose = False
 		self.daemon = False
+		self.pidfile = "/var/run/dataq/pid"
 
 		for attribute in node.attributes:
 			if attribute.nodeName == "address":
@@ -712,6 +762,10 @@ class Config:
 				self.daemon = str2bool(attribute.nodeValue)
 			
 		queuePool = QueuePool()
+
+		pidfileText = xpath.Evaluate('pidfile/child::text()', node)
+		if len(pidfileText) > 0:
+			self.pidfile = pidfileText[0].data
 
 		accessNodes = xpath.Evaluate('access', node)
 		for accessNode in accessNodes:
@@ -779,6 +833,14 @@ class Config:
 				raise ConfigError, 101 # Incorrect access rule position
 				pass
 
+def handler(signum, frame):
+	global daemon
+	
+	Log.verboseMsg("Received signal %i: Shutting down." % signum)
+	daemon.cleanup()
+
+	sys.exit(0)
+
 if __name__ == "__main__":
 	global verbose
 	global optlist 
@@ -826,14 +888,22 @@ if __name__ == "__main__":
 
 	if config.daemon:
 		Log.verboseMsg("Running in daemon mode... Detaching from terminal.")
-		Daemon()
+		try:
+			daemon = Daemon(config.pidfile)
+		except DaemonError, e:
+			print "Couldn't start the daemon process: " + e.getMessage()
+			sys.exit(-5)
+
+	# Start catching signals
+	for s in [signal.SIGABRT, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM]:
+		signal.signal(s, handler)
 
 	try:
 		server = Server((config.address, config.port), RequestHandler)
 		server.serve_forever()
-	except KeyboardInterrupt, e:
-		sys.exit(0)
 	except socket.error, (errNr, errMsg):
 		Log.verboseErr("Socket already in use. Aborting...");
+		if config.daemon:
+			daemon.cleanup()
 		sys.exit(-2)
 
