@@ -44,6 +44,7 @@ usageStr =\
 #  -3 Configuration file problem
 #  -4 Import error; missing python package
 #  -5 Daemon starting error
+#  -6 Couldn't create spool dir 
 
 import sys
 import signal
@@ -73,7 +74,8 @@ def str2bool(string):
 class DataqError(Exception):
 
 	""" 
-		Generic DataQ Error exception 
+	The DataqError exception is thrown whenever a server run-time error is
+	detected. For instance, when a client requests a non-existing queue.
 	"""
 
 	messages = {
@@ -103,11 +105,15 @@ class DataqError(Exception):
 class ConfigError(Exception):
 
 	""" 
-		DataQ Configuration file Error exception.
-		Thrown by Queue methods when wrong information is passed.
+	The ConfigError exception is thrown by the Config class when problems occur
+	in the configuration file.
 	"""
 
 	messages = {
+		# Meta config errors
+		001: "No usable config file found",
+		002: "Syntax error",
+
 		# Access rule definition errors
 		101: "Incorrect access rule position",
 		102: "Wrong value for sense",
@@ -116,6 +122,12 @@ class ConfigError(Exception):
 		201: "Wrong value for type",
 		202: "Wrong value for size",
 		203: "Wrong value for overflow",
+		204: "Queue name is requird",
+
+		# Queue Pool definition errors
+		301: "Wrong value for spool event",
+
+		999: "Undefined exception",
 	}
 
 	def __init__(self, value):
@@ -134,13 +146,14 @@ class ConfigError(Exception):
 class DaemonError(Exception):
 
 	""" 
-	Daemon error exception
+	The DaemonError exception is thrown when something goes wrong during the
+	process of daemonizing (detaching from the console) the dataq server.
 	"""
 
 	messages = {
-		# 
 		101: "DataQ server already running",
-		102: "Couldn't log PID"
+		102: "Couldn't log PID",
+		103: "Couldn't remove PID file",
 	}
 
 	def __init__(self, value):
@@ -159,7 +172,7 @@ class DaemonError(Exception):
 class Log:
 
 	""" 
-		Console, verbose and system log logger 
+	Console, verbose and system log logger.
 	"""
 
 	def verbose(type, msg):
@@ -185,18 +198,13 @@ class Log:
 class Access:
 
 	"""
-		Access Control class. One instance of this class contains (non) access
-		information for a single host/user/password.
+	Access Control class. One instance of this class contains (non) access
+	information for a single host/user/password combination.
 	"""
-
-	sense = "allow"
-	password = ""
-	username = ""
-	host = ""
 
 	def __init__(self, sense = "allow", password = "", username = "", host = ""):
 		if sense != "allow" and sense != "deny":
-			raise ConfigError, 102 # Wrong value for sense
+			raise UserWarning, "Wrong value for sense"
 		
 		self.sense = sense
 		self.password = password
@@ -206,29 +214,27 @@ class Access:
 class Queue:
 
 	""" 
-		Base queue class that handles generic actions on queues. Derive new 
-		queue types (FILO, FIFO, etc) from this class
+	Base queue class that handles generic actions on queues. Derive new queue
+	types (FILO, FIFO, etc) from this class.
 	"""
 
-	name = ""
-	type = ""
-	size = 0
-	overflow = ""
-
-	def __init__(self, name, type, size, overflow):
+	def __init__(self, name, type, size, overflow, spooldir):
 		if type != "filo" and type != "fifo":
-			raise ConfigError, 201 # Wrong value for type
+			raise UserWarning, "Wrong value for type"
 		if size < 1:
-			raise ConfigError, 202 # Wrong value for size
+			raise UserWarning, "Wrong value for size"
 		if overflow != "deny" and overflow != "pop":
-			raise ConfigError, 203 # Wrong value for overflow
+			raise UserWarning, "Wrong value for overflow"
 			
 		self.name = name
 		self.type = type
 		self.size = size
 		self.overflow = overflow
+		self.spooldir = spooldir
 
 		Log.verboseMsg("Registered new queue '" + self.name + "' (type:" + self.type + ", size: " + str(self.size) + ", overflow: " + self.overflow + ")")
+
+		self.readSpool()
 
 	def __len__(self):
 		return(len(self.queue))
@@ -236,14 +242,14 @@ class Queue:
 	def push(self, message):
 		retResponse = ""
 		
-		Log.verboseMsg("Pushing to " + self.name + ": " + message)
-
 		if len(self.queue) == self.size:
 			if self.overflow == "pop":
 				self.pop()
 			elif self.overflow == "deny":
 				raise DataqError, 203 # Queue is full
 				
+		Log.verboseMsg("Pushing to " + self.name + ": " + message)
+
 		self.queue.append(message)
 
 		return(retResponse)
@@ -262,13 +268,14 @@ class Queue:
 		return(retResponse)
 
 	def clear(self):
-		retResponse = ""
 
+		retResponse = ""
 		self.queue = []
 
 		return(retResponse)
 
 	def addAccess(self, access):
+
 		Log.verboseMsg("Adding '" + (access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queue '" + self.name + "'")
 		access.queuename = self.name
 		self.accessList.append(access)
@@ -276,13 +283,6 @@ class Queue:
 	def hasAccess(self, password, username, host):
 
 		for access in self.accessList:
-
-			print "access.queuename= ", access.queuename
-			print "access.sense    = ", access.sense
-			print "access.host     = ", access.host
-			print "access.username = ", access.username
-			print "access.password = ", access.password
-			print
 
 			matchHost = False
 			matchUsername = False
@@ -303,18 +303,39 @@ class Queue:
 				
 		return(None)
 
+	def writeSpool(self):
 		
+		Log.verboseMsg("Writing queue '" + self.name + "' to "+self.spooldir+self.name+".")
+
+		try:
+			f = open(self.spooldir+self.name, 'w')
+			for data in self.queue:
+				f.write(data+'\n')
+			f.close()
+		except IOError, e:
+			Log.verboseErr("Couldn't write '"+self.name+"' queue's data to "+self.spooldir+self.name)
+		
+	def readSpool(self):
+		
+		Log.verboseMsg("Reading queue '"+self.name+"' from "+self.spooldir+self.name)
+
+		try:
+			f = open(self.spooldir+self.name, 'r')
+			self.queue = f.readlines()
+		except IOError, e:
+			Log.verboseWarn("Couldn't read '"+self.name+"' queue's data from "+self.spooldir+self.name)
+
 class FifoQueue(Queue):
 
 	"""
-		FIFO Queue: First message in is the first message out. (Queue)
+	FIFO Queue: First message in is the first message out. (Queue)
 	"""
 		
-	queue = []
-
-	def __init__(self, name, size, overflow):
+	def __init__(self, name, size, overflow, spooldir):
+		self.queue = []
 		self.accessList = []
-		Queue.__init__(self, name, "fifo", size, overflow)
+
+		Queue.__init__(self, name, "fifo", size, overflow, spooldir)
 
 	def pop(self):
 		retResponse = ""
@@ -329,14 +350,13 @@ class FifoQueue(Queue):
 class FiloQueue(Queue):
 
 	"""
-		FILO Queue: First message in is the first out. (Stack)
+	FILO Queue: First message in is the first out. (Stack)
 	"""
 
-	queue = []
-
-	def __init__(self, name, size, overflow):
+	def __init__(self, name, size, overflow, spooldir):
+		self.queue = []
 		self.accessList = []
-		Queue.__init__(self, name, "filo", size, overflow)
+		Queue.__init__(self, name, "filo", size, overflow, spooldir)
 
 	def pop(self):
 		retResponse = ""
@@ -351,23 +371,27 @@ class FiloQueue(Queue):
 class QueuePool:
 	
 	"""
-		Intermediary class between queues and the server's request handler.
-		This class takes care of creation, communication and access checking
-		for queues.
+	Intermediary class between queues and the server's request handler.  This
+	class takes care of creation, communication and access checking for queues.
 	"""
 
-	queues = {}
-
-	def __init__(self):
+	def __init__(self, spoolDir, spoolEvents):
+		self.queues = {}
 		self.accessList = []
-	
+
+		self.spoolDir = spoolDir
+		self.spoolEvents = spoolEvents
+
+		if self.spoolDir[-1] != '/':
+			self.spoolDir += '/'
+
 	def createQueue(self, name, type, size, overflow):
 		if type == "fifo":
-			newQueue = FifoQueue(name, size, overflow)
+			newQueue = FifoQueue(name, size, overflow, self.spoolDir)
 		elif type == "filo":
-			newQueue = FiloQueue(name, size, overflow)
+			newQueue = FiloQueue(name, size, overflow, self.spoolDir)
 		else:
-			raise ConfigError, 201 # Wrong value for type
+			raise UserWarning, "Wrong value for type"
 
 		self.queues[name] = newQueue
 
@@ -432,6 +456,10 @@ class QueuePool:
 
 		retResponse = queue.push(message)
 
+		for spoolEvent in self.spoolEvents:
+			if spoolEvent == "write":
+				self.writeSpool(queueName)
+
 		return(retResponse)
 
 	def pop(self, host, queueURI):
@@ -447,6 +475,10 @@ class QueuePool:
 		self.checkAccess(password, username, host, queue);
 
 		retResponse = queue.pop()
+
+		for spoolEvent in self.spoolEvents:
+			if spoolEvent == "write":
+				self.writeSpool(queueName)
 
 		return(retResponse)
 
@@ -492,6 +524,10 @@ class QueuePool:
 
 		retResponse = queue.clear()
 
+		for spoolEvent in self.spoolEvents:
+			if spoolEvent == "write":
+				self.writeSpool(queueName)
+
 		return(retResponse)
 
 	def parseQueueURI(self, queueURI):
@@ -509,12 +545,20 @@ class QueuePool:
 			
 		return (username, password, queueName)
 		
+	def writeSpool(self, queueName = None):
+		if queueName == None:
+			for queueName in self.queues:
+				queue = self.queues[queueName]
+				queue.writeSpool()
+		else:
+			self.queues[queueName].writeSpool()
+
 class RequestHandler(SocketServer.BaseRequestHandler):
 
 	"""
-		Handle a single incomming connection by reading a request, processing 
-		it, delegating it to the queuePool and then transmitting the resulting
-		data (error, popped message, etc).
+	Handle a single incomming connection by reading a request, processing it,
+	delegating it to the queuePool and then transmitting the resulting data
+	(error, popped message, etc).
 	"""
 	
 	def __init__(self, request, client_address, server):
@@ -564,6 +608,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		"""Nothing"""
 
 	def process(self, data):
+
 		retResponse = ""
 		
 		try:
@@ -639,7 +684,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
 	"""
-		Basic socket server
+	Basic socket server
 	"""
 
 	daemon_threads = True
@@ -651,7 +696,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 class Daemon:
 
 	"""
-		Daemonize the current process (detach it from the console).
+	Daemonize the current process (detach it from the console).
 	"""
 	
 	def __init__(self, pidfile):
@@ -665,6 +710,7 @@ class Daemon:
 		try: 
 			pid = os.fork() 
 			if pid > 0:
+				# Parent
 				sys.exit(0) 
 		except OSError, e: 
 			print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
@@ -677,14 +723,17 @@ class Daemon:
 		try: 
 			pid = os.fork() 
 			if pid > 0:
-				self.logPID(pid)
+				# parent
 				sys.exit(0) 
 		except OSError, e: 
 			print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
 			sys.exit(-2) 
 
+		self.logPID(os.getpid())
+
 	def logPID(self, pid):
-		# Write the daemon PID to /var/run
+		Log.verboseMsg("PID: " + str(pid))
+		# Write the daemon PID to the PID file (default /var/run/dataq.pid)
 		try:
 			f = open(self.pidfile, 'w')
 			f.write(str(pid))
@@ -692,152 +741,297 @@ class Daemon:
 		except IOError, e:
 			raise DaemonError, 102 # Couldn't log PID
 
-		Log.verboseMsg("PID: " + str(pid))
 		
 	def cleanup(self):
+
 		# Clean up PID file
 		Log.verboseMsg("Cleaning up daemon process")
-		os.remove(self.pidfile)
+		try:
+			os.remove(self.pidfile)
+		except IOError, e:
+			raise DaemonError, 103 # Couldn't remove PID file
 
 class Config:
 
 	"""
-		DataQ XML Configuration reader.
+	The Config class takes a list of possible configuration files and a
+	dictionary of configuration values that need to be overridden (i.e.
+	options set on the commandline always override options set in the
+	configuration file). 
 
-		Uses XPath to recurse into the tree, calling self.handleFooNode()
-		methods which in turn recurse into child nodes with XPath.
+	First, Config tries all configuration files in configFiles. The last one
+	that can be read will be used. After reading that file, it will check for
+	unspecified but required options and fill them in from defaults. Then the
+	options are overridden using configOverrides.  Last comes the verification
+	of config options to see if everything is valid.
 	"""
 	
-	def __init__(self, configfiles, configOverrides):
+	def __init__(self, configFiles, configOverrides):
+
+		self.dataq = {}
+		self.queuePool = {}
+		self.queuePool["access"] = []
+
+		self.queues = []
 
 		# Find the first valid configuration file and use it.
+		finalConfigFile = self.findConfigFile(configFiles)
+		if not finalConfigFile:
+			raise ConfigError, 001 # No usable config file found
 
-		finalConfigFile = None
+		# Read information from the configuration file
+		self.readConfigFile(finalConfigFile)
+
+		# Fill in anything left out in the configuration file
+		self.applyDefaults()
+
+		# Apply all manual overrides from, for instance, the commandline
+		self.override(configOverrides)
+
+		# Verify the resulting configuration values
+		self.verify()
+
+	def findConfigFile(self, configFiles):
+		retFinalConfigFile = None
 
 		for configFile in configFiles:
+			Log.verboseMsg("Trying config " + configFile);
 			try:
 				f = open(configFile, 'r')
 				f.close()
-				finalConfigFile = configFile
+				retFinalConfigFile = configFile
 			except IOError:
 				pass
 	
-		if finalConfigFile:
-			try:
-				document = Sax.Reader().fromStream(open(finalConfigFile,'r'))
-			except Exception, e:
-				print "Configuration syntax error:", e
-				sys.exit(-3)
+		if not retFinalConfigFile:
+			raise ConfigError, 001 # No usable config file found
 
-			dataqNodes = xpath.Evaluate('dataq', document)
+		Log.verboseMsg("Using config " + retFinalConfigFile);
+		return(retFinalConfigFile)
 
-			for dataqNode in dataqNodes:
-				self.handleDataqNode(dataqNode)
+	def readConfigFile(self, configFile):
+		try:
+			document = Sax.Reader().fromStream(open(configFile,'r'))
+		except Exception, e:
+			raise ConfigError, 002 # Syntax error
 
-			# FIXME: Free the Sax reader??
-		else:
-			raise IOError
-
-		# Override configuration file options with commandline options.
-		for configOverride in configOverrides:
-			setattr(self, configOverride, configOverrides[configOverride])
-
-	def handleDataqNode(self, node):
-		global queuePool # FIXME: Globals are ugly.
-
-		self.address = ""
-		self.port = 50000
-		self.verbose = False
-		self.daemon = False
-		self.pidfile = "/var/run/dataq/pid"
-
-		for attribute in node.attributes:
-			if attribute.nodeName == "address":
-				self.address = str(attribute.nodeValue)
-			if attribute.nodeName == "port":
-				self.port = int(attribute.nodeValue)
-			if attribute.nodeName == "verbose":
-				self.verbose = str2bool(attribute.nodeValue)
-			if attribute.nodeName == "daemon":
-				self.daemon = str2bool(attribute.nodeValue)
+		# <dataq>
+		dataqNodes = xpath.Evaluate('dataq', document)
+		for dataqNode in dataqNodes:
 			
-		queuePool = QueuePool()
+			for attribute in dataqNode.attributes:
+				if attribute.nodeName == "port":
+					self.dataq["port"] = int(attribute.nodeValue)
+				if attribute.nodeName == "daemon":
+					self.dataq["daemon"] = str2bool(attribute.nodeValue)
 
-		pidfileText = xpath.Evaluate('pidfile/child::text()', node)
-		if len(pidfileText) > 0:
-			self.pidfile = pidfileText[0].data
+			# <pidfile>
+			pidFileNodes = xpath.Evaluate('pidfile', dataqNode)
+			for pidFileNode in pidFileNodes:
+				if pidFileNode.firstChild != None:
+					self.dataq["pidFile"] = pidFileNode.firstChild.data
 
-		accessNodes = xpath.Evaluate('access', node)
-		for accessNode in accessNodes:
-			self.handleAccessNode(accessNode, queuePool)
+			# <spool>
+			spoolNodes = xpath.Evaluate('spool', dataqNode)
+			for spoolNode in spoolNodes:
 
-		queueNodes = xpath.Evaluate('queue', node)
-		for queueNode in queueNodes:
-			self.handleQueueNode(queueNode, queuePool)
+				# <event>
+				eventNodes = xpath.Evaluate('event', spoolNode)
 
-	def handleQueueNode(self, node, queuePool):
+				if len(eventNodes) > 0: 
+					self.queuePool["spoolEvents"] = [] # Clear defaults
 
-		name = ""
-		type = "fifo"
-		size = 10
-		overflow = "pop"
+				for eventNode in eventNodes:
+					if eventNode.firstChild != None:
+						self.queuePool["spoolEvents"].append(eventNode.firstChild.data)
 
-		for attribute in node.attributes:
-			if attribute.nodeName == "name":
-				name = attribute.nodeValue
-			if attribute.nodeName == "type":
-				type = attribute.nodeValue
-			if attribute.nodeName == "size": 
-				size = int(attribute.nodeValue)
-			if attribute.nodeName == "overflow":
-				overflow = attribute.nodeValue
+				# <spooldir>
+				spoolDirNodes = xpath.Evaluate('spooldir', spoolNode)
+				for spoolDirNode in spoolDirNodes:
+					if spoolDirNode.firstChild != None:
+						self.queuePool["spoolDir"] = str(spoolDirNode.firstChild.data)
+				
+			# <access>
+			accessNodes = xpath.Evaluate('access', dataqNode)
+			for accessNode in accessNodes:
+				
+				access = {}
 
-		queue = queuePool.createQueue(name, type, size, overflow)
+				for attribute in accessNode.attributes:
+					if attribute.nodeName == "sense":
+						access["sense"] = attribute.nodeValue
 
-		accessNodes = xpath.Evaluate('access', node)
+				# <password>
+				passwordNodes = xpath.Evaluate('password', accessNode)
+				for passwordNode in passwordNodes:
+					if passwordNode.firstChild != None:
+						access["password"] = str(passwordNode.firstChild.data)
 
-		for accessNode in accessNodes:
-			self.handleAccessNode(accessNode, queuePool, queue)
+				# <username>
+				usernameNodes = xpath.Evaluate('username', accessNode)
+				for usernameNode in usernameNodes:
+					if usernameNode.firstChild != None:
+						access["username"] = str(usernameNode.firstChild.data)
 
-	def handleAccessNode(self, node, queuePool, queue = None):
+				# <host>
+				hostNodes = xpath.Evaluate('host', accessNode)
+				for hostNode in hostNodes:
+					if hostNode.firstChild != None:
+						access["host"] = str(hostNode.firstChild.data)
 
-		sense = "allow"
-		password = ""
-		username = ""
-		host = ""
+				self.queuePool["access"].append(access)
 
-		for attribute in node.attributes:
-			if attribute.nodeName == "sense":
-				sense = attribute.nodeValue
+			# <queue>
+			queueNodes = xpath.Evaluate('queue', dataqNode)
+			for queueNode in queueNodes:
+				
+				queue = {}
+				queue["access"] = []
 
-		passwordText = xpath.Evaluate('password/child::text()', node)
-		if len(passwordText) > 0:
-			password = passwordText[0].data
+				#if not "name" in queue:
+				#	raise ConfigError, 999 # Missing queue name
 
-		usernameText = xpath.Evaluate('username/child::text()', node)
-		if len(usernameText) > 0:
-			username = usernameText[0].data
+				for attribute in queueNode.attributes:
+					if attribute.nodeName == "name":
+						queue["name"] = str(attribute.nodeValue)
+					if attribute.nodeName == "type":
+						type = str(attribute.nodeValue)
+						#if type != "fifo" and type != "filo":
+						#	raise ConfigError, 999 # Wrong type for queue type
+						queue["type"] = type
+					if attribute.nodeName == "size": 
+						queue["size"] = int(attribute.nodeValue)
+					if attribute.nodeName == "overflow":
+						overflow = str(attribute.nodeValue)
+						#if overflow != "deny" and overflow != "pop":
+						#	raise ConfigError, 999 # Wrong type for overflow
+						queue["overflow"] = overflow
 
-		hostText = xpath.Evaluate('host/child::text()', node)
-		if len(hostText) > 0:
-			host = hostText[0].data
-			
-		access = Access(sense, password, username, host)
-			
-		if queue != None:
-			queue.addAccess(access)
-		else:
-			if queuePool != None:
-				queuePool.addAccess(access)
-			else:
-				raise ConfigError, 101 # Incorrect access rule position
-				pass
+				# <access>
+				accessNodes = xpath.Evaluate('access', queueNode)
+				for accessNode in accessNodes:
+					
+					access = {}
+
+					for attribute in accessNode.attributes:
+						if attribute.nodeName == "sense":
+							sense = str(attribute.nodeValue)
+							#if sense != "allow" and sense != "deny":
+							#	raise ConfigError, 999 # Wrong type for sense
+							access["sense"] = str(attribute.nodeValue)
+
+					# <password>
+					passwordNodes = xpath.Evaluate('password', accessNode)
+					for passwordNode in passwordNodes:
+						if passwordNode.firstChild != None:
+							access["password"] = str(passwordNode.firstChild.data)
+
+					# <username>
+					usernameNodes = xpath.Evaluate('username', accessNode)
+					for usernameNode in usernameNodes:
+						if usernameNode.firstChild != None:
+							access["username"] = str(usernameNode.firstChild.data)
+
+					# <host>
+					hostNodes = xpath.Evaluate('host', accessNode)
+					for hostNode in hostNodes:
+						if hostNode.firstChild != None:
+							access["host"] = str(hostNode.firstChild.data)
+
+					queue["access"].append(access)
+
+				self.queues.append(queue)
+
+	def applyDefaults(self):
+		# <dataq>
+		if not "address" in self.dataq:
+			self.dataq["address"] = ""
+		if not "port" in self.dataq:
+			self.dataq["port"] = 50000
+		if not "daemon" in self.dataq:
+			self.dataq["daemon"] = False
+
+		# <pidfile>
+		if not "pidFile" in self.dataq:
+			self.dataq["pidFile"] = "/var/run/dataq.pid"
+
+		# <spooldir>
+		if not "spoolDir" in self.queuePool:
+			self.queuePool["spoolDir"] = "/var/spool/dataq/"
+
+		# <spoolevents>
+		if not "spoolEvents" in self.queuePool:
+			self.queuePool["spoolEvents"] = []
+
+		# <access>
+		for access in self.queuePool["access"]:
+			if not "sense" in access:
+				access["sense"] = "allow"
+			if not "username" in access:
+				access["username"] = ""
+			if not "password" in access:
+				access["password"] = ""
+			if not "host" in access:
+				access["host"] = ""
+
+		# <queue>
+		for queue in self.queues:
+
+			if not "type" in queue:
+				queue["type"] = "fifo"
+			if not "size" in queue:
+				queue["size"] = 10
+			if not "overflow" in queue:
+				queue["overflow"] = "deny"
+				
+			# <access>
+			for access in queue["access"]:
+				if not "sense" in access:
+					access["sense"] = "allow"
+				if not "username" in access:
+					access["username"] = ""
+				if not "password" in access:
+					access["password"] = ""
+				if not "host" in access:
+					access["host"] = ""
+
+	def override(self, configOverrides):
+		for key in configOverrides:
+			if key == "address":
+				self.dataq["address"] = configOverrides[key]
+			if key == "port":
+				self.dataq["port"] = configOverrides[key]
+			if key == "daemon":
+				self.dataq["daemon"] = configOverrides[key]
+		
+	def verify(self):
+		for spoolEvent in self.queuePool["spoolEvents"]:
+			if spoolEvent != "write" and spoolEvent != "shutdown":
+				raise ConfigError, 301 # Wrong value for spool event
+
+		for access in self.queuePool["access"]:
+			if access["sense"] != "allow" and access["sense"] != "deny":
+				raise ConfigError, 102 # Wrong value for sense
+
+		for queue in self.queues:
+			if not "name" in queue:
+				raise ConfigError, 204 # Queue name required
+			for access in queue["access"]:
+				if access["sense"] != "allow" and access["sense"] != "deny":
+					raise ConfigError, 102 # Wrong value for sense
+
 
 def handler(signum, frame):
-	global daemon
+	global config, daemon, queuePool
 	
 	Log.verboseMsg("Received signal %i: Shutting down." % signum)
-	daemon.cleanup()
+
+	if config.dataq["daemon"]:
+		daemon.cleanup()
+
+	for spoolEvent in queuePool.spoolEvents:
+		if spoolEvent == "shutdown":
+			queuePool.writeSpool()
 
 	sys.exit(0)
 
@@ -860,7 +1054,8 @@ if __name__ == "__main__":
 
 	for a in params:
 		if a[0] == "-c":
-			configFiles.append(a[1])
+			# Only try configuration file on commandline
+			configFiles = [a[1]] 
 
 		if a[0] == "-a":
 			configOverrides["address"] = a[1]
@@ -884,26 +1079,57 @@ if __name__ == "__main__":
 		print "Error in configuration:", e.getMessage()
 		sys.exit(-3)
 
-	Log.verboseMsg("Starting server on address " + config.address + ":" + str(config.port))
 
-	if config.daemon:
+	# Try to create the spool directory
+	try:
+		if not os.access(config.queuePool["spoolDir"], os.F_OK):
+			os.makedirs(config.queuePool["spoolDir"])
+	except OSError, e:
+		print "Couldn't create spool directory."
+		sys.exit(-6);
+
+	# Create queue pool
+	queuePool = QueuePool(config.queuePool["spoolDir"], config.queuePool["spoolEvents"])
+
+	for access in config.queuePool["access"]:
+		queuePoolAccess = Access(access["sense"], access["password"], access["username"], \
+			access["host"])
+		queuePool.addAccess(queuePoolAccess)
+
+	# Create queues
+	for queue in config.queues:
+
+		newQueue = queuePool.createQueue(queue["name"], queue["type"], queue["size"], queue["overflow"])
+
+		for access in queue["access"]:
+			queueAccess = Access(access["sense"], access["password"], access["username"], \
+				access["host"])
+			newQueue.addAccess(queueAccess)
+		
+	Log.verboseMsg("Starting server on address " + config.dataq["address"] + ":" + str(config.dataq["port"]))
+
+	# Daemonize process
+	if config.dataq["daemon"]:
 		Log.verboseMsg("Running in daemon mode... Detaching from terminal.")
 		try:
-			daemon = Daemon(config.pidfile)
+			daemon = Daemon(config.dataq["pidFile"])
 		except DaemonError, e:
 			print "Couldn't start the daemon process: " + e.getMessage()
+			if e.getValue() == 101:
+				print "If it's not, remove the PID file " + config.dataq["pidFile"]
 			sys.exit(-5)
 
 	# Start catching signals
 	for s in [signal.SIGABRT, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM]:
 		signal.signal(s, handler)
 
+	# Start server
 	try:
-		server = Server((config.address, config.port), RequestHandler)
+		server = Server((config.dataq["address"], config.dataq["port"]), RequestHandler)
 		server.serve_forever()
 	except socket.error, (errNr, errMsg):
 		Log.verboseErr("Socket already in use. Aborting...");
-		if config.daemon:
+		if config.dataq["daemon"]:
 			daemon.cleanup()
 		sys.exit(-2)
 
