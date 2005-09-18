@@ -7,17 +7,18 @@ else
 fi
 
 for TEST in `ls -1 -d $TESTS| grep -v 'test.sh'`; do
+	# Clean up any previous test run data
+	rm /tmp/spool -r
+
 	echo -n "Running test in $TEST... "
-	../src/dataq.py -dV -c $TEST/dataq.xml > dataq.out
-	
+	../src/dataq.py -d -V -c $TEST/dataq.xml > dataq.out
+
 	if [ "$?" -ne 0 ]; then
-		echo "DataQ server returned an error. Please check that is correctly working. Aborting the testrun."
+		echo "DataQ server returned an error ($?). Aborting the testrun."
 		exit
 	fi
-		
 
-	TEMP=`grep 'PID:' dataq.out`
-	PID=`echo $TEMP | cut -d':' -f2`
+	PID=`cat /tmp/dataq.pid`
 
 	cat $TEST/in | while read; 
 		do echo $REPLY | netcat localhost 49999 >> test.out; 

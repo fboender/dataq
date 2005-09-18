@@ -12,5 +12,10 @@ name:denyuser
 type:fifo
 size:10
 overflow:deny
+messages:0
+name:allowuserpw
+type:fifo
+size:10
+overflow:deny
 messages:2
 

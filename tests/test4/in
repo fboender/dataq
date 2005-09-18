@@ -7,3 +7,4 @@ PUSH john:secret@denyuser test
 PUSH john:secret@allowuserpw test
 PUSH pete:mypw@allowuserpw test
 STAT richard:hispw@denyuser
+STAT pete:mypw@allowuserpw
