@@ -12,13 +12,35 @@ DataQ v0.3 example configuration file.
 	port            Port to listen on. Default is 50000.
 	daemon          Run as daemon (detach from terminal)?
 -->
-<dataq port="50000" daemon="false" verbose="true">
+<dataq port="50000" daemon="false">
 	<!--
 	Define where to store the PID (process ID) file so scripts can easily 
 	shut down the server. 
 	-->
 	<pidfile>/var/run/dataq.pid</pidfile>
 	
+	<!--
+	Define if, when and where to keep the persistant queue data. When the 
+	server is (suddenly) shut down, the data in the queues will be kept 
+	here. Be advised that when frequently spooling data for large queues
+	this will cause a severe performance hit.
+	-->
+	<spool>
+		<!--
+		Spooling can be done when certain events take place: 
+		'write' event spools the queue each time a write action is performed,
+		'shutdown' event spools when the server is shut down. 
+		You can specify more than one <event></event>
+		-->
+		<event>shutdown</event>
+		<event>write</event>
+
+		<!--
+		Define where to keep a persistant copy of the queue messages
+		-->
+		<spooldir>/var/spool/dataq</spooldir>
+	</spool>
+
 	<!-- 
 	Allow access to all queues that don't explicitly deny to be access from the 
 	localhost.
