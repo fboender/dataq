@@ -347,6 +347,16 @@ class FifoQueue(Queue):
 
 		return(retResponse)
 
+	def peek(self):
+		retResponse = ""
+
+		Log.verboseMsg("PEEKing at " + self.name)
+
+		if len(self.queue) > 0:
+			retResponse = self.queue[0]
+
+		return(retResponse)
+
 class FiloQueue(Queue):
 
 	"""
@@ -365,6 +375,16 @@ class FiloQueue(Queue):
 
 		if len(self.queue) > 0:
 			retResponse = self.queue.pop()
+
+		return(retResponse)
+
+	def peek(self):
+		retResponse = ""
+
+		Log.verboseMsg("PEEKing at " + self.name)
+
+		if len(self.queue) > 0:
+			retResponse = self.queue[-1]
 
 		return(retResponse)
 
@@ -479,6 +499,22 @@ class QueuePool:
 		for spoolEvent in self.spoolEvents:
 			if spoolEvent == "write":
 				self.writeSpool(queueName)
+
+		return(retResponse)
+
+	def peek(self, host, queueURI):
+		retResponse = ""
+		queue = None
+		username, password, queueName = self.parseQueueURI(queueURI)
+		
+		if queueName not in self.queues:
+			raise DataqError, 201 # Unknown queue
+
+		queue = self.queues[queueName]
+
+		self.checkAccess(password, username, host, queue);
+
+		retResponse = queue.peek()
 
 		return(retResponse)
 
@@ -622,6 +658,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 			retResponse = self.processPush(data)
 		elif requestType.upper() == "POP":
 			retResponse = self.processPop(data)
+		elif requestType.upper() == "PEEK":
+			retResponse = self.processPeek(data)
 		elif requestType.upper() == "STAT":
 			retResponse = self.processStat(data)
 		elif requestType.upper() == "CLEAR":
@@ -652,6 +690,19 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 		try:
 			queueURI = data
 			retResponse = queuePool.pop(self.client_address[0], queueURI)
+		except ValueError:
+			raise DataqError, 101 # Bad syntax in request
+
+		return retResponse
+
+	def processPeek(self, data):
+		global queuePool
+		
+		retResponse = ""
+		
+		try:
+			queueURI = data
+			retResponse = queuePool.peek(self.client_address[0], queueURI)
 		except ValueError:
 			raise DataqError, 101 # Bad syntax in request
 

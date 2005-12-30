@@ -4,8 +4,10 @@ Non-blocking:
 [ ] Support for non-decimal host addresses.
 [ ] Request info should be passed around as an object or possibly a dict instead of seperate host, username, etc information.
 [ ] Stress-testing
-[ ] Static queues (POPing doesn't actually pop, just returns the last value).
-    Maybe make this into a new Request type
+[X] Static queues (POPing doesn't actually pop, just returns the last value).
+    Maybe make this into a new Request type. Implemented as PEEK.
 [ ] Inverse daemon option. (default = daemon, non-daemon is commandline option)
 [ ] syslog logging.
 [ ] init.d scripts.
+[ ] Error reporting on stderr and in syslog.
+

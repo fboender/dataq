@@ -19,6 +19,12 @@ POP
 
 	Usage: POP [[username:]password@]queue_name
 	
+PEEK
+
+	Peek at the queue. Performs a POP without actually modifying the queue.
+
+	Usage: PEEK [[username:]password@]queue_name
+	
 CLEAR
 
 	Usage: CLEAR [[username:]password@]queue_name
