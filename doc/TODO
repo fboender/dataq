@@ -2,6 +2,7 @@ v0.3 blocking:
 
 Non-blocking:
 [ ] Support for non-decimal host addresses.
+[ ] Support for netmasks.
 [ ] Request info should be passed around as an object or possibly a dict instead of seperate host, username, etc information.
 [ ] Stress-testing
 [X] Static queues (POPing doesn't actually pop, just returns the last value).

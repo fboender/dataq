@@ -45,8 +45,9 @@ Configuration
 	An example configuration file can be found in the config/ directory. It
 	contains descriptions of the available configuration directives.
 
-Access Control
---------------
+
+	Access Control
+	--------------
 
 	Access Control works on a global Server level (all queues) and on
 	individual queues.
@@ -121,4 +122,17 @@ Running
 	  -d Run in daemon mode (detach from terminal)
 	  -V Verbose mode. Lots-o-output.
 	  -v Print version information
+
+	
+	Stopping the daemon:
+
+		kill `cat /var/run/dataq.pid`
+
+
+Usage
+-----------------------------------------------------------------------------
+
+	For a description of the protocol and how to use dataq, please see
+	doc/PROTOCOL
+
 
