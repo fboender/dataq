@@ -46,6 +46,12 @@ Configuration
 	contains descriptions of the available configuration directives.
 
 
+	Queue Definitions
+	-----------------
+
+	For information on how to define queues and all the possibilities for
+	queues, please see the config/dataq.xml.example file.
+
 	Access Control
 	--------------
 
