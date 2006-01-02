@@ -53,6 +53,8 @@ import os
 import SocketServer
 import socket
 import select
+import struct
+import math
 from xml.dom.ext.reader import Sax
 from xml import xpath
 try:
@@ -195,6 +197,66 @@ class Log:
 	verboseWarn = staticmethod(verboseWarn)
 	verboseErr = staticmethod(verboseErr)
 	
+class Net:
+
+	def dot2long(dot):
+	
+		"""
+		Convert a dotted ip address to a long integer.
+		dot2long("192.168.1.5") -> 3232235781
+		"""
+		
+		return(struct.unpack('>L', socket.inet_pton(socket.AF_INET, dot))[0])
+
+	def long2dot(l):
+	
+		"""
+		Convert a long integer ip address to a dotted string.
+		long2dot(3232235781) -> "192.168.1.5"
+		"""
+		
+		return(socket.inet_ntoa(struct.pack('>L', l)))
+
+	def nm_dot2bit(dot):
+	
+		"""
+		Convert a dotted netmask to a (integer) bitwise netmask.
+		nm_dot2bit("255.255.255.0") -> 24
+		"""
+		
+		l = Net.dot2long(dot)
+
+		return(32 - math.log( (1 << 32L) - l, 2))
+
+	def nm_bit2dot(bit):
+		"""
+		Convert an (integer) bitwise netmask to a dotted string.
+		nm_bit2dot(24) -> "255.255.255.0"
+		"""
+		l = (1 << 32L) - (1 << long(32 - bit))
+
+		return(Net.long2dot(l))
+
+	def inNet(ip, net_addr, net_mask):
+		"""
+		Check if ip is a member of the network net_addr which has netmask net_mask.
+		Returns True or False.
+		inNet("192.168.1.5", "192.168.1.0", "255.255.255.0") -> True
+		inNet("192.168.2.5", "192.168.1.0", "255.255.255.0") -> False
+		"""
+
+		ip_long = Net.dot2long(ip)
+		na_long = Net.dot2long(net_addr)
+		nm_long = Net.dot2long(net_mask)
+
+		return (ip_long & nm_long == na_long)
+
+	dot2long = staticmethod(dot2long)
+	long2dot = staticmethod(long2dot)
+	nm_dot2bit = staticmethod(nm_dot2bit)
+	nm_bit2dot = staticmethod(nm_bit2dot)
+	inNet = staticmethod(inNet)
+
 class Access:
 
 	"""
@@ -202,7 +264,7 @@ class Access:
 	information for a single host/user/password combination.
 	"""
 
-	def __init__(self, sense = "allow", password = "", username = "", host = ""):
+	def __init__(self, sense = "allow", password = "", username = "", host = "", netmask = ""):
 		if sense != "allow" and sense != "deny":
 			raise UserWarning, "Wrong value for sense"
 		
@@ -210,6 +272,11 @@ class Access:
 		self.password = password
 		self.username = username
 		self.host = host
+		self.netmask = netmask
+
+		if self.netmask != "" and not '.' in self.netmask:
+			# Netmask in bit form, convert.
+			self.netmask = Net.nm_bit2dot(int(self.netmask))
 
 class Queue:
 
@@ -276,7 +343,7 @@ class Queue:
 
 	def addAccess(self, access):
 
-		Log.verboseMsg("Adding '" + (access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queue '" + self.name + "'")
+		Log.verboseMsg("Adding '" + (access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " (NM: " + str(access.netmask) + ") to queue '" + self.name + "'")
 		access.queuename = self.name
 		self.accessList.append(access)
 
@@ -288,6 +355,8 @@ class Queue:
 			matchUsername = False
 			matchPassword = False
 
+			if access.host != "" and access.netmask != "" and Net.inNet(host, access.host, access.netmask):
+				matchHost = True
 			if access.host != "" and host == access.host:
 				matchHost = True
 			if access.username != "" and username == access.username:
@@ -418,7 +487,8 @@ class QueuePool:
 		return(newQueue)
 
 	def addAccess(self, access):
-		Log.verboseMsg("Adding '" + str(access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queuePool")
+		Log.verboseMsg("Adding '" + (access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " (NM: " + str(access.netmask) + ") to queuePool")
+		#Log.verboseMsg("Adding '" + str(access.sense) + "' access for P:" + str(access.password) + " U:" + str(access.username) + " H: " + str(access.host) + " to queuePool")
 		self.accessList.append(access)
 
 	def hasAccess(self, password, username, host):
@@ -429,6 +499,8 @@ class QueuePool:
 			matchUsername = False
 			matchPassword = False
 
+			if access.host != "" and access.netmask != "" and Net.inNet(host, access.host, access.netmask):
+				matchHost = True
 			if access.host != "" and host == access.host:
 				matchHost = True
 			if access.username != "" and username == access.username:
@@ -815,6 +887,9 @@ class Config:
 	unspecified but required options and fill them in from defaults. Then the
 	options are overridden using configOverrides.  Last comes the verification
 	of config options to see if everything is valid.
+
+	Note that Config only holds the configuration values; it doesn not create
+	any usable instances.
 	"""
 	
 	def __init__(self, configFiles, configOverrides):
@@ -928,7 +1003,14 @@ class Config:
 				hostNodes = xpath.Evaluate('host', accessNode)
 				for hostNode in hostNodes:
 					if hostNode.firstChild != None:
-						access["host"] = str(hostNode.firstChild.data)
+						host = str(hostNode.firstChild.data)
+
+						if '/' in host:
+							host, netmask = host.split("/")
+						else:
+							netmask = ""
+						access["host"] = host
+						access["netmask"] = netmask
 
 				self.queuePool["access"].append(access)
 
@@ -987,7 +1069,13 @@ class Config:
 					hostNodes = xpath.Evaluate('host', accessNode)
 					for hostNode in hostNodes:
 						if hostNode.firstChild != None:
-							access["host"] = str(hostNode.firstChild.data)
+							host = str(hostNode.firstChild.data)
+
+							# Netmask?
+							if '/' in host:
+								access["host"], access["netmask"] = host.split('/')
+							else:
+								access["host"] = host
 
 					queue["access"].append(access)
 
@@ -1024,6 +1112,8 @@ class Config:
 				access["password"] = ""
 			if not "host" in access:
 				access["host"] = ""
+			if not "netmask" in access:
+				access["netmask"] = ""
 
 		# <queue>
 		for queue in self.queues:
@@ -1045,6 +1135,8 @@ class Config:
 					access["password"] = ""
 				if not "host" in access:
 					access["host"] = ""
+				if not "netmask" in access:
+					access["netmask"] = ""
 
 	def override(self, configOverrides):
 		for key in configOverrides:
@@ -1144,7 +1236,7 @@ if __name__ == "__main__":
 
 	for access in config.queuePool["access"]:
 		queuePoolAccess = Access(access["sense"], access["password"], access["username"], \
-			access["host"])
+			access["host"], access["netmask"])
 		queuePool.addAccess(queuePoolAccess)
 
 	# Create queues
@@ -1154,7 +1246,7 @@ if __name__ == "__main__":
 
 		for access in queue["access"]:
 			queueAccess = Access(access["sense"], access["password"], access["username"], \
-				access["host"])
+				access["host"], access["netmask"])
 			newQueue.addAccess(queueAccess)
 		
 	Log.verboseMsg("Starting server on address " + config.dataq["address"] + ":" + str(config.dataq["port"]))

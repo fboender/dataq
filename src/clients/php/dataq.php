@@ -6,6 +6,7 @@
 // (http://www.electricmonk.nl/index.php?page=DataQ
 //
 // Copyright (C), 2005 Ferry Boender. 
+// Contributions from: Michiel van Baak
 //
 // Released under the Lesser General Public License (LGPL):
 //  
@@ -149,6 +150,13 @@ class Dataq {
 	public function pop($queueName) {
 		$queueURI = $this->buildQueueURI($queueName);
 		$response = $this->doRequest("POP ".$queueURI);
+
+		return($response[0]);
+	}
+
+	public function peek($queueName) {
+		$queueURI = $this->buildQueueURI($queueName);
+		$response = $this->doRequest("PEEK ".$queueURI);
 
 		return($response[0]);
 	}

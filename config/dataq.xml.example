@@ -65,6 +65,15 @@ DataQ v0.3 example configuration file.
 		<password>petespw</password>
 	</access>
 
+	<!--
+	Allow user 'jake' with password 'jakespw' from the intranet '192.168.1.x'.
+	-->
+	<access>
+		<host>192.168.1.0/24</host>
+		<username>jake</username>
+		<password>jakespw</password>
+	</access>
+
 	<!-- 
 	<queue name="NAME" type="FIFO/FILO" size="SIZE" overflow="deny/pop" />
 

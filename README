@@ -5,6 +5,8 @@ DataQ v0.3
 	Licensed under the General Public License (GPL), see COPYING file 
 	provided with this program.
 
+	Contributions from: Michiel van Baak - Testing, idea's and PHP client patches.
+
 	Client libraries (src/client/) are licensed under the Lesser General Public
 	License (LGPL), see src/client/COPYING file.
 
@@ -60,7 +62,7 @@ Configuration
 
 	Each access block is in the form of:
 		<access [sense='...']>
-			[<host>IP</host>]
+			[<host>IP[/NETMASK]</host>]
 			[<username>USERNAME</username>]
 			[<password>PASSWORD</password>]
 		</access>
@@ -111,10 +113,6 @@ Configuration
 
 	Pretty obvious, I'd say.
 
-	NOTE: It is, at the moment, not yet possible to change the default global
-	sense. So it is not possible to create a 'public' server. This has been
-	done deliberately because DataQ is still vulnerable to DDoS attacks at this
-	point in the development.
 
 
 Running
