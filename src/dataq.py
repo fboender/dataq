@@ -226,7 +226,7 @@ class Net:
 		
 		l = Net.dot2long(dot)
 
-		return(32 - math.log( (1 << 32L) - l, 2))
+		return(int(32 - math.log( (1 << 32L) - l, 2)))
 
 	def nm_bit2dot(bit):
 		"""
