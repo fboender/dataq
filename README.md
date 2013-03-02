@@ -17,9 +17,27 @@ but binary queue data will also be supported.
 *NOTICE*: This is a work in progress. Please check out doc/TODO for things
 that are buggy.
 
+Features
+--------
+
+*   FIFO Queues (First In, First Out a.k.a Queues)
+*   FILO Queues (First In, Last Out a.k.a Stacks)
+*   Queue size restrictions and various ways of dealing with overflowing queues
+    (Deny new messages, doing a pop for a new message if the queue would
+    overflow because of it)
+*   A very simple text-based protocol
+*   Username/password/IP protection of queues.
+*   PHP and Commandline clients included.
 
 Installation
 ------------
+
+### Requirements
+
+*   [Python v2.3+](http://www.python.org)
+*   [PyXML v0.8.4+](http://pyxml.sourceforge.net/)
+
+### Installation
 
 1.   Copy config/dataq.xml.example to /etc/dataq.xml and modify (see 
 	 Configuration)
